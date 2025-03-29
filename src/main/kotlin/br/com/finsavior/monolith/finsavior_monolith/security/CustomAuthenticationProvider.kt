@@ -1,6 +1,6 @@
-package br.com.olxcarwatcher.security
+package br.com.finsavior.monolith.finsavior_monolith.security
 
-import br.com.olxcarwatcher.repository.UserRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.authentication.AuthenticationProvider
 import org.springframework.security.authentication.BadCredentialsException

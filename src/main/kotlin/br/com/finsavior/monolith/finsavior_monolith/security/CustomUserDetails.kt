@@ -1,4 +1,4 @@
-package br.com.olxcarwatcher.security
+package br.com.finsavior.monolith.finsavior_monolith.security
 
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import org.springframework.security.core.GrantedAuthority

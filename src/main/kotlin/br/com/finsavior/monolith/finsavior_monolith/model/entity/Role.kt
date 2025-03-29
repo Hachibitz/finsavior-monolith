@@ -1,6 +1,5 @@
-package br.com.olxcarwatcher.model.entity
+package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
-import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -13,5 +12,5 @@ data class Role(
     val id: Long = 0,
     val name: String,
     @Embedded
-    val audit: Audit? = null
+    var audit: Audit? = null
 )

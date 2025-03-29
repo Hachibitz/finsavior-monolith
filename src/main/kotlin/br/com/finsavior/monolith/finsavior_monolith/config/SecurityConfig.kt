@@ -1,9 +1,9 @@
 package br.com.finsavior.monolith.finsavior_monolith.config
 
-import br.com.olxcarwatcher.security.CustomAuthenticationProvider
-import br.com.olxcarwatcher.security.JWTAuthenticationFilter
-import br.com.olxcarwatcher.security.TokenProvider
-import br.com.olxcarwatcher.security.UserSecurityDetails
+import br.com.finsavior.monolith.finsavior_monolith.security.CustomAuthenticationProvider
+import br.com.finsavior.monolith.finsavior_monolith.security.JWTAuthenticationFilter
+import br.com.finsavior.monolith.finsavior_monolith.security.TokenProvider
+import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -22,8 +22,6 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 import org.springframework.web.filter.CorsFilter
-import kotlin.apply
-import kotlin.jvm.java
 
 @EnableWebSecurity
 @Configuration
@@ -53,7 +51,6 @@ class SecurityConfig(
 
     init {
         ALLOWED_ORIGINS.add(allowedOrigin)
-        println(ALLOWED_ORIGINS)
     }
 
     @Bean
@@ -87,7 +84,9 @@ class SecurityConfig(
                         "/resources/**",
                         "/auth/password-recovery",
                         "/auth/password-reset",
-                        "/auth/refresh-token"
+                        "/auth/refresh-token",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
@@ -99,10 +98,7 @@ class SecurityConfig(
                     ).hasRole("ADMIN")
                     // Endpoints que requerem USER ou ADMIN
                     .requestMatchers(
-                        "/olx/status",
-                        "/olx/start",
-                        "/olx/stop",
-                        "/olx/test-roles"
+                        "/bill/**",
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()

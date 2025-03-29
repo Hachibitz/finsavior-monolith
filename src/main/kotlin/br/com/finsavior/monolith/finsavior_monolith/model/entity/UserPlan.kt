@@ -5,7 +5,6 @@ import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
-import jakarta.persistence.MapsId
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
 
@@ -16,14 +15,10 @@ class UserPlan (
     @Column(name = "user_id")
     var userId: Long,
 
-    @Column(name = "plan_id")
-    var planId: String,
-
     @OneToOne
-    @MapsId
     @JoinColumn(name = "plan_id")
     val plan: Plan,
 
     @Embedded
-    val audit: Audit? = null
+    var audit: Audit? = null
 )

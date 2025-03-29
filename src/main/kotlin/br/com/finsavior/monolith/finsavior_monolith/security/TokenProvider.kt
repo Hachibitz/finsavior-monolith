@@ -1,6 +1,6 @@
-package br.com.olxcarwatcher.security
+package br.com.finsavior.monolith.finsavior_monolith.security
 
-import br.com.olxcarwatcher.repository.UserRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import org.springframework.beans.factory.annotation.Value

@@ -1,4 +1,4 @@
-package br.com.olxcarwatcher.security
+package br.com.finsavior.monolith.finsavior_monolith.security
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest

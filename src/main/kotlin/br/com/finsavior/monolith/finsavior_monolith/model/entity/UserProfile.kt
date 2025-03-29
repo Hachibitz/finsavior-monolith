@@ -6,9 +6,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
-import jakarta.persistence.JoinColumn
 import jakarta.persistence.Lob
-import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
 
 @Entity
@@ -29,15 +27,8 @@ data class UserProfile (
     @Lob
     var profilePicture: ByteArray? = null,
 
-    @Column(name = "plan_id")
-    var planId: String,
-
-    @OneToOne
-    @JoinColumn(name = "user_id", referencedColumnName = "id")
-    val user: User,
-
     @Embedded
-    val audit: Audit? = null
+    var audit: Audit? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -49,8 +40,6 @@ data class UserProfile (
         if (name != other.name) return false
         if (email != other.email) return false
         if (!profilePicture.contentEquals(other.profilePicture)) return false
-        if (planId != other.planId) return false
-        if (user != other.user) return false
         if (audit != other.audit) return false
 
         return true
@@ -61,8 +50,6 @@ data class UserProfile (
         result = 31 * result + name.hashCode()
         result = 31 * result + email.hashCode()
         result = 31 * result + (profilePicture?.contentHashCode() ?: 0)
-        result = 31 * result + planId.hashCode()
-        result = 31 * result + user.hashCode()
         result = 31 * result + audit.hashCode()
         return result
     }

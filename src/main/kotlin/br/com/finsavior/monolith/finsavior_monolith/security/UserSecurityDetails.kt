@@ -1,6 +1,6 @@
-package br.com.olxcarwatcher.security
+package br.com.finsavior.monolith.finsavior_monolith.security
 
-import br.com.olxcarwatcher.repository.UserRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException

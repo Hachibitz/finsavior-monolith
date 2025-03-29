@@ -1,6 +1,5 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
-import br.com.olxcarwatcher.model.entity.Role
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
@@ -16,23 +15,24 @@ import jakarta.persistence.OneToOne
 @Entity
 data class User(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long = 0,
+    val id: Long,
     val username: String,
     var password: String,
 
     @Column(name = "first_name")
-    var firstName: String? = null,
+    var firstName: String,
 
     @Column(name = "last_name")
-    var lastName: String? = null,
+    var lastName: String,
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL]) @JoinColumn(
-        name = "id",
-        referencedColumnName = "user_id"
-    )
+    var email: String,
+
+    @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
+    @JoinColumn(name = "id", referencedColumnName = "user_id")
     val userPlan: UserPlan,
 
-    @OneToOne(mappedBy = "user", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    @JoinColumn(name = "id", referencedColumnName = "id")
     val userProfile: UserProfile,
 
     var name: String,
@@ -42,7 +42,7 @@ data class User(
     val enabled: Boolean,
 
     @Embedded
-    val audit: Audit? = null
+    var audit: Audit? = null
 ) {
     fun getFirstAndLastName(): String {
         val completeName = (this.firstName + this.lastName).trim { it <= ' ' }

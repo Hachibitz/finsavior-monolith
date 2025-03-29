@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.FlagEnum
 import jakarta.persistence.Column
 import jakarta.persistence.EnumType
@@ -9,17 +10,17 @@ import java.time.LocalDateTime
 data class Audit(
     @Column(name = "del_fg")
     @Enumerated(EnumType.STRING)
-    private var delFg: FlagEnum,
+    var delFg: FlagEnum = FlagEnum.N,
 
     @Column(name = "insert_dtm")
-    private var insertDtm: LocalDateTime? = null,
+    var insertDtm: LocalDateTime? = LocalDateTime.now(),
 
     @Column(name = "insert_id")
-    private var insertId: String? = null,
+    var insertId: String? = CommonEnum.APP_ID.value,
 
     @Column(name = "update_dtm")
-    private var updateDtm: LocalDateTime? = null,
+    var updateDtm: LocalDateTime? = LocalDateTime.now(),
 
     @Column(name = "update_id")
-    private var updateId: String? = null
+    var updateId: String? = CommonEnum.APP_ID.value
 )

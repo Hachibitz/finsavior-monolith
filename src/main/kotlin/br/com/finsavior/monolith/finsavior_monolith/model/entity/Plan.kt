@@ -14,5 +14,5 @@ data class Plan (
     var description: String,
 
     @Embedded
-    val audit: Audit? = null
+    var audit: Audit? = null
 )
