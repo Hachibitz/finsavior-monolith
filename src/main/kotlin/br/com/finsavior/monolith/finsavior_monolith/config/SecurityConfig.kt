@@ -98,7 +98,8 @@ class SecurityConfig(
                     // Endpoints que requerem USER ou ADMIN
                     .requestMatchers(
                         "/bill/**",
-                        "/user/**"
+                        "/user/**",
+                        "/ai-advice/**"
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()

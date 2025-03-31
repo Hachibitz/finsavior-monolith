@@ -12,13 +12,13 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
-import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.time.YearMonth
@@ -28,7 +28,7 @@ import java.util.*
 class AiAdviceService(
     private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
-    private val planRepository: PlanRepository
+    @Lazy private val userService: UserService
 ) {
 
     fun generateAiAdviceAndInsights(request: AiAdviceDTO): AiAdviceResponseDTO {
@@ -78,10 +78,11 @@ class AiAdviceService(
         return AiAdviceResponseDTO(advice.id!!)
     }
 
-    fun getAiAnalysisList(request: AiAnalysisDTO): List<AiAnalysisDTO> {
+    fun getAiAnalysisList(): List<AiAnalysisDTO> {
         try {
+            val userId: Long = userService.getUserByContext().id!!
             val responseAiAnalysisList: MutableList<AiAnalysisDTO> = mutableListOf()
-            val aiAdviceList: List<AiAdvice?>? = aiAdviceRepository.getAllByUserId(request.userId!!)
+            val aiAdviceList: List<AiAdvice?>? = aiAdviceRepository.getAllByUserId(userId)
             aiAdviceList?.map { aiAdvice -> aiAdvice?.let { responseAiAnalysisList.add(it.toAiAnalysisDTO()) } }
             return responseAiAnalysisList
         } catch (e: Exception) {
