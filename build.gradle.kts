@@ -17,6 +17,7 @@ java {
 
 repositories {
 	mavenCentral()
+	maven { url = uri("https://repo.spring.io/snapshot") }
 }
 
 extra["springCloudVersion"] = "2024.0.1"
@@ -35,6 +36,11 @@ dependencies {
 	implementation("com.mysql:mysql-connector-j:9.2.0")
 	implementation("org.springframework.boot:spring-boot-starter-mail:3.4.4")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
+	implementation("org.springframework.boot:spring-boot-starter")
+	implementation("org.springframework.boot:spring-boot-starter-amqp")
+	implementation("com.github.fridujo:rabbitmq-mock:1.1.1")
+	implementation("com.google.api-client:google-api-client:2.7.2")
+	implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:0.8.1-SNAPSHOT")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

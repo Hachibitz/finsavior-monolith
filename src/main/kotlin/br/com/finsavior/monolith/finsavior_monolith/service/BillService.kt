@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.BillRegisterException
+import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
@@ -9,6 +10,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.MonthEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toBillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toTableData
+import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepository
 import mu.KLogger
 import mu.KotlinLogging
@@ -20,7 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Service
 class BillService(
     private val billTableDataRepository: BillTableDataRepository,
-    private val userService: UserService
+    private val userService: UserService,
+    private val aiAdviceRepository: AiAdviceRepository
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -33,7 +36,7 @@ class BillService(
         }
 
         billRegisterRequestDTO.billDate = formatBillDate(billRegisterRequestDTO.billDate)
-        billRegisterRequestDTO.userId = user.id
+        billRegisterRequestDTO.userId = user.id!!
 
         try {
             saveRegister(billRegisterRequestDTO)
@@ -54,27 +57,38 @@ class BillService(
 
     fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
             billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-                userService.getUserByContext().id,
+                userService.getUserByContext().id!!,
                 billDate,
                 BillTableEnum.MAIN
             ).map { it.toBillTableDataDTO() }
 
     fun loadCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userService.getUserByContext().id,
+            userService.getUserByContext().id!!,
             billDate,
             BillTableEnum.CREDIT_CARD
         ).map { it.toBillTableDataDTO() }
 
     fun loadPaymentCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userService.getUserByContext().id,
+            userService.getUserByContext().id!!,
             billDate,
             BillTableEnum.PAYMENT_CARD
         ).map { it.toBillTableDataDTO() }
 
     fun deleteItemFromTable(itemId: Long) =
         billTableDataRepository.deleteById(itemId)
+
+    @Transactional
+    fun deleteAllUserData(userId: Long) {
+        try {
+            billTableDataRepository.deleteByUserId(userId)
+            aiAdviceRepository.deleteByUserId(userId)
+        } catch (e: Exception) {
+            log.error("Falha ao deletar dados do usuário: ${e.message}")
+            throw DeleteUserException(e.message?:"Erro ao deletar dados do usuário")
+        }
+    }
 
     private fun validateBillTable(billTable: String?): Boolean {
         val isError = AtomicBoolean(false)

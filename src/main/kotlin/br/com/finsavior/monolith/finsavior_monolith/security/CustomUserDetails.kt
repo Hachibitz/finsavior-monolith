@@ -8,13 +8,13 @@ import java.util.stream.Collectors
 
 class CustomUserDetails(private val user: User) : UserDetails {
     override fun getAuthorities(): Collection<GrantedAuthority> {
-        return user.roles.stream()
+        return user.roles!!.stream()
             .map { role -> SimpleGrantedAuthority(role.name) }
             .collect(Collectors.toList())
     }
 
     fun getId(): Long {
-        return user.id
+        return user.id!!
     }
 
     override fun getPassword(): String {

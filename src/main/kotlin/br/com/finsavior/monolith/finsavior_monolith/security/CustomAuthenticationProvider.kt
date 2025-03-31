@@ -27,7 +27,7 @@ class CustomAuthenticationProvider(
             throw BadCredentialsException("Credenciais inválidas")
         }
 
-        val authorities: List<GrantedAuthority> = user.roles.map { SimpleGrantedAuthority(it.name) }
+        val authorities: List<GrantedAuthority> = user.roles!!.map { SimpleGrantedAuthority(it.name) }
 
         return UsernamePasswordAuthenticationToken(username, password, authorities)
     }

@@ -15,7 +15,10 @@ data class UserProfile (
     @Id
     @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long,
+    var id: Long? = null,
+
+    @Column(name = "user_id", unique = true)
+    var userId: Long? = null,
 
     @Column(name = "name")
     var name: String,

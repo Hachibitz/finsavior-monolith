@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("bill")
-class BillsController(
+class BillController(
     var service: BillService
 ) {
 
@@ -32,6 +32,10 @@ class BillsController(
     @GetMapping("/load-card-table-data")
     fun loadCardTableData(@RequestParam billDate: String): List<BillTableDataDTO> =
         service.loadCardTableData(billDate)
+
+    @GetMapping("/load-payment-card-table-data")
+    fun loadPaymentCardTableData(@RequestParam billDate: String): List<BillTableDataDTO> =
+        service.loadPaymentCardTableData(billDate)
 
     @DeleteMapping("/delete")
     @ResponseStatus(HttpStatus.OK)

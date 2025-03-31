@@ -9,13 +9,17 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
+import jakarta.persistence.JoinTable
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToOne
+import jakarta.persistence.Table
 
 @Entity
+@Table(name = "user")
 data class User(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long,
+    val id: Long? = null,
+    @Column(name="username", unique = true)
     val username: String,
     var password: String,
 
@@ -25,21 +29,25 @@ data class User(
     @Column(name = "last_name")
     var lastName: String,
 
+    @Column(name="email", unique = true)
     var email: String,
 
     @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
     @JoinColumn(name = "id", referencedColumnName = "user_id")
-    val userPlan: UserPlan,
+    var userPlan: UserPlan?,
 
-    @OneToOne(cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    @JoinColumn(name = "id", referencedColumnName = "id")
-    val userProfile: UserProfile,
+    @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
+    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    var userProfile: UserProfile?,
 
-    var name: String,
-    var phone: String,
     @ManyToMany(fetch = FetchType.EAGER)
-    val roles: Set<Role> = setOf(),
-    val enabled: Boolean,
+    @JoinTable(
+        name = "user_roles",
+        joinColumns = [JoinColumn(name = "user_id")],
+        inverseJoinColumns = [JoinColumn(name = "role_id")]
+    )
+    var roles: MutableSet<Role> = mutableSetOf(),
+    var enabled: Boolean,
 
     @Embedded
     var audit: Audit? = null
@@ -58,4 +66,18 @@ data class User(
 
         return this.firstName + " " + singleLastName
     }
+
+    constructor() : this(
+        null,
+        "",
+        "",
+        "",
+        "",
+        "",
+        null,
+        null,
+        mutableSetOf(),
+        true,
+        null
+    )
 }

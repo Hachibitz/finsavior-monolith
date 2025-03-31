@@ -79,26 +79,26 @@ class SecurityConfig(
                     ).permitAll()
                     // Permite endpoints públicos
                     .requestMatchers(
-                        "/auth/login",
-                        "/auth/session-check",
                         "/resources/**",
-                        "/auth/password-recovery",
-                        "/auth/password-reset",
-                        "/auth/refresh-token",
                         "/swagger-ui/**",
                         "/v3/api-docs/**",
+                        "/auth/refresh-token",
+                        "/auth/login-google",
+                        "/auth/login-auth",
+                        "/auth/signup",
+                        "/auth/password-recovery",
+                        "/auth/reset-password",
+                        "/auth/validate-token",
+                        "/terms-and-privacy/**"
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
-                        "/auth/register",
-                        "/olx/test-send-telegram",
-                        "/user/list",
-                        "/user/{id}",
-                        "olx/test-roles"
+                        "/user/test-producer",
                     ).hasRole("ADMIN")
                     // Endpoints que requerem USER ou ADMIN
                     .requestMatchers(
                         "/bill/**",
+                        "/user/**"
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()

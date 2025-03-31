@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository
 @Repository
 interface BillTableDataRepository : JpaRepository<BillTableData, Long> {
     fun findAllByUserIdAndBillDateAndBillTable(userId: Long, billDate: String, billTable: BillTableEnum): List<BillTableData>
+    fun deleteByUserId(userId: Long)
 }
