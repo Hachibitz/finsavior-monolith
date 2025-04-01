@@ -99,7 +99,8 @@ class SecurityConfig(
                     .requestMatchers(
                         "/bill/**",
                         "/user/**",
-                        "/ai-advice/**"
+                        "/ai-advice/**",
+                        "/payment/**"
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()
