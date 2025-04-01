@@ -31,7 +31,7 @@ class BillService(
     fun billRegister(billRegisterRequestDTO: BillTableDataDTO) {
         val user: User = userService.getUserByContext()
 
-        if (validateBillTable(billRegisterRequestDTO.billTable.value)) {
+        if (validateBillTable(billRegisterRequestDTO.billTable.name)) {
             throw IllegalArgumentException("Tabela inválida")
         }
 
@@ -58,21 +58,28 @@ class BillService(
     fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
             billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
                 userService.getUserByContext().id!!,
-                billDate,
+                this.formatBillDate(billDate),
                 BillTableEnum.MAIN
             ).map { it.toBillTableDataDTO() }
 
     fun loadCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
             userService.getUserByContext().id!!,
-            billDate,
+            this.formatBillDate(billDate),
             BillTableEnum.CREDIT_CARD
+        ).map { it.toBillTableDataDTO() }
+
+    fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> =
+        billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userService.getUserByContext().id!!,
+            this.formatBillDate(billDate),
+            BillTableEnum.ASSETS
         ).map { it.toBillTableDataDTO() }
 
     fun loadPaymentCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
             userService.getUserByContext().id!!,
-            billDate,
+            this.formatBillDate(billDate),
             BillTableEnum.PAYMENT_CARD
         ).map { it.toBillTableDataDTO() }
 
@@ -96,7 +103,7 @@ class BillService(
         val tableEnum: Array<BillTableEnum> = BillTableEnum.entries.toTypedArray()
 
         for (tableType in tableEnum) {
-            typeChecker = if (tableType.value == billTable) typeChecker + 1 else typeChecker + 0
+            typeChecker = if (tableType.name == billTable) typeChecker + 1 else typeChecker + 0
             isError.set(typeChecker == 0)
         }
 

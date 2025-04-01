@@ -1,23 +1,38 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.enums
 
-import java.util.*
+import br.com.finsavior.monolith.finsavior_monolith.config.PromptConfig
 
-enum class PromptEnum(promptFileName: String, val analysisType: AnalysisTypeEnum) {
-    PROMPT_MONTHLY("prompt-monthly", AnalysisTypeEnum.MONTH),
-    PROMPT_TRIMESTER("prompt-trimester", AnalysisTypeEnum.TRIMESTER),
-    PROMPT_ANNUAL("prompt-annual", AnalysisTypeEnum.ANNUAL);
+enum class PromptEnum(val analysisType: AnalysisTypeEnum) {
+    PROMPT_MONTHLY(AnalysisTypeEnum.MONTH) {
+        override fun getPromptParts(config: PromptConfig): List<String> {
+            return listOf(
+                config.promptMonthlyPart1,
+                config.promptMonthlyPart2,
+                config.promptMonthlyPart3,
+                config.promptMonthlyPart4
+            )
+        }
+    },
+    PROMPT_TRIMESTER(AnalysisTypeEnum.TRIMESTER) {
+        override fun getPromptParts(config: PromptConfig): List<String> {
+            return listOf(
+                config.promptTrimesterPart1,
+                config.promptTrimesterPart2,
+                config.promptTrimesterPart3,
+                config.promptTrimesterPart4
+            )
+        }
+    },
+    PROMPT_ANNUAL(AnalysisTypeEnum.ANNUAL) {
+        override fun getPromptParts(config: PromptConfig): List<String> {
+            return listOf(
+                config.promptAnnualPart1,
+                config.promptAnnualPart2,
+                config.promptAnnualPart3,
+                config.promptAnnualPart4
+            )
+        }
+    };
 
-    val promptParts: List<String>
-
-    init {
-        val properties = Properties()
-        val inputStream = this::class.java.classLoader.getResourceAsStream("$promptFileName.properties")
-        properties.load(inputStream)
-        promptParts = listOf(
-            properties.getProperty("$promptFileName-part1"),
-            properties.getProperty("$promptFileName-part2"),
-            properties.getProperty("$promptFileName-part3"),
-            properties.getProperty("$promptFileName-part4")
-        )
-    }
+    abstract fun getPromptParts(config: PromptConfig): List<String>
 }

@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.config.PromptConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
@@ -28,18 +29,20 @@ import java.util.*
 class AiAdviceService(
     private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
+    private val promptConfig: PromptConfig,
     @Lazy private val userService: UserService
 ) {
 
     fun generateAiAdviceAndInsights(request: AiAdviceDTO): AiAdviceResponseDTO {
         val currentDateTime = LocalDateTime.now()
+        val user: User = userService.getUserByContext()
 
         val analysisType = getAnalysisTypeById(request.analysisTypeId) ?:
             throw AiAdviceException("Plano não encontrado")
-        val planType: PlanTypeEnum = getPlanTypeById(request.planId) ?:
+        val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
             throw AiAdviceException("Plano não encontrado")
 
-        if (!validatePlanAndAnalysisType(request, analysisType, planType)) {
+        if (!validatePlanAndAnalysisType(user.id!!, request, analysisType, planType)) {
             throw AiAdviceException("Consulta excedida pelo plano")
         }
 
@@ -47,7 +50,7 @@ class AiAdviceService(
         messages.add(UserMessage(request.prompt))
 
         val options = OpenAiChatOptions.builder()
-            .withModel("gpt-4o")
+            .withModel("gpt-3.5-turbo-1106")
             .withUser("FinSaviorApp")
             .withTemperature(
                 if (planType == PlanTypeEnum.FREE) 0.0f
@@ -73,7 +76,7 @@ class AiAdviceService(
             throw AiAdviceException("Falha na comunicação com a API de IA", e)
         }
 
-        val advice = saveAiAdvice(request, chatResponse, currentDateTime)
+        val advice = saveAiAdvice(user.id!!, request, chatResponse, currentDateTime)
 
         return AiAdviceResponseDTO(advice.id!!)
     }
@@ -99,6 +102,7 @@ class AiAdviceService(
     }
 
     private fun validatePlanAndAnalysisType(
+        userId: Long,
         request: AiAdviceDTO,
         analysisType: AnalysisTypeEnum,
         planType: PlanTypeEnum
@@ -111,19 +115,19 @@ class AiAdviceService(
         val endDate = currentDate.withDayOfMonth(daysOfMonth)
 
         val annualAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
-            request.userId!!,
+            userId,
             initialDate,
             endDate,
             AnalysisTypeEnum.ANNUAL.analysisTypeId
         )
         val trimesterAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
-            request.userId,
+            userId,
             initialDate,
             endDate,
             AnalysisTypeEnum.TRIMESTER.analysisTypeId
         )
         val monthAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
-            request.userId,
+            userId,
             initialDate,
             endDate,
             AnalysisTypeEnum.MONTH.analysisTypeId
@@ -173,17 +177,13 @@ class AiAdviceService(
 
     private fun getPrompt(aiAdviceDTO: AiAdviceDTO): String {
         val chosenAnalysis: AnalysisTypeEnum = getChosenAnalysis(aiAdviceDTO)
-
-        val promptParts: List<String> = getPromptByAnalysisType(chosenAnalysis).promptParts
+        val promptParts: List<String> = getPromptByAnalysisType(chosenAnalysis).getPromptParts(promptConfig)
         return getFormattedPrompt(promptParts, aiAdviceDTO)
     }
 
-    private fun getPromptByAnalysisType(analysisType: AnalysisTypeEnum?): PromptEnum {
-        return Arrays.stream(PromptEnum.entries.toTypedArray())
-            .filter { prompt -> prompt.analysisType == analysisType }
-            .findFirst()
-            .orElse(null)
-    }
+    private fun getPromptByAnalysisType(analysisType: AnalysisTypeEnum?): PromptEnum =
+        PromptEnum.entries.find { it.analysisType == analysisType }
+            ?: throw IllegalArgumentException("Tipo de prompt não encontrado")
 
     private fun getFormattedPrompt(promptParts: List<String>, aiAdvice: AiAdviceDTO): String {
         val prompt = StringBuilder()
@@ -214,14 +214,15 @@ class AiAdviceService(
     }
 
     private fun saveAiAdvice(
+        userId: Long,
         request: AiAdviceDTO,
         chatResponse: ChatResponse,
         generatedAt: LocalDateTime
     ): AiAdvice {
         return aiAdviceRepository.save(
             AiAdvice(
-                userId = request.userId!!,
-                prompt = request.prompt,
+                userId = userId,
+                prompt = getPrompt(request),
                 resultMessage = chatResponse.result.output.content,
                 analysisTypeId = request.analysisTypeId,
                 temperature = request.temperature,

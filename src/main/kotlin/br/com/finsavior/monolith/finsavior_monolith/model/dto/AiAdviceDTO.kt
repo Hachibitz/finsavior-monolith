@@ -4,8 +4,8 @@ import java.time.LocalDateTime
 
 data class AiAdviceDTO(
     val userId: Long? = null,
-    val prompt: String,
-    val planId: String,
+    val prompt: String? = null,
+    val planId: String? = null,
     val analysisTypeId: Int,
     val mainAndIncomeTable: String,
     val cardTable: String,

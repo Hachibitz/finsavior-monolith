@@ -4,6 +4,8 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -36,6 +38,7 @@ class BillTableData (
     var billDescription: String? = null,
 
     @Column(name = "bill_table")
+    @Enumerated(EnumType.STRING)
     var billTable: BillTableEnum,
 
     @Column(name = "is_paid")
