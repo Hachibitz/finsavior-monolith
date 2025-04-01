@@ -26,7 +26,7 @@ data class UserProfile (
     @Column(name = "email")
     var email: String,
 
-    @Column(name = "profile_picture")
+    @Column(name = "profile_picture", columnDefinition = "LONGBLOB")
     @Lob
     var profilePicture: ByteArray? = null,
 
