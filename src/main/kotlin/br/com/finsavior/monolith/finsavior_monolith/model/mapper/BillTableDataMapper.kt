@@ -12,7 +12,7 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         billValue = this.billValue,
         billDate = this.billDate,
         billType = this.billType,
-        isPaid = this.isPaid,
+        isPaid = this.paid,
         billTable = this.billTable,
     )
 
@@ -25,6 +25,6 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         billValue = this.billValue,
         billDate = this.billDate,
         billType = this.billType,
-        isPaid = this.isPaid,
+        paid = this.isPaid,
         billTable = this.billTable,
     )

@@ -7,6 +7,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.MonthEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toBillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toTableData
@@ -16,6 +17,7 @@ import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -48,7 +50,18 @@ class BillService(
 
     fun billUpdate(billTableDataDTO: BillTableDataDTO) {
         try {
-            billTableDataRepository.save(billTableDataDTO.toTableData())
+            val existingRecord = billTableDataRepository.findById(billTableDataDTO.id).orElseThrow {
+                IllegalArgumentException("Registro não encontrado")
+            }
+            existingRecord.apply {
+                billName = billTableDataDTO.billName
+                billDescription = billTableDataDTO.billDescription
+                billValue = billTableDataDTO.billValue
+                isPaid = billTableDataDTO.paid
+                audit?.updateDtm = LocalDateTime.now()
+                audit?.updateId = CommonEnum.APP_ID.name
+            }
+            billTableDataRepository.save(existingRecord)
         } catch (e: Exception) {
             log.error("Falha ao editar item da tabela principal: ${e.message}")
             throw BillRegisterException("Erro ao editar item da tabela principal: ${e.message}", e)

@@ -12,6 +12,6 @@ data class BillTableDataDTO (
     var billValue: BigDecimal,
     var billDescription: String?,
     var billTable: BillTableEnum,
-    var isPaid: Boolean,
+    var paid: Boolean,
     var isRecurrent: Boolean? = null,
 )
