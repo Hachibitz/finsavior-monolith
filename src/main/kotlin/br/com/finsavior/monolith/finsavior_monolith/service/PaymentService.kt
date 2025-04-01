@@ -12,10 +12,12 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.PlanHistoryReposi
 import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.context.annotation.Lazy
+import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 import java.util.*
 
+@Service
 class PaymentService(
     @Lazy private val userService: UserService,
     private val externalUserRepository: ExternalUserRepository,
