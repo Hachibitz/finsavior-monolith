@@ -9,5 +9,5 @@ data class ResourceDTO(
     @JsonProperty("create_time")
     val createTime: String,
     @JsonProperty("plan_id")
-    private val planId: String,
+    val planId: String,
 )
