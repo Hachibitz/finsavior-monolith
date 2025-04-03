@@ -39,14 +39,7 @@ class SecurityConfig(
     }
 
     companion object {
-        val ALLOWED_ORIGINS = mutableListOf(
-            "http://localhost:4200",
-            "http://localhost:8100",
-            "https://localhost",
-            "http://localhost",
-            "http://144.126.155.88:8089",
-            "http://144.126.155.88"
-        )
+        val ALLOWED_ORIGINS = mutableListOf<String>()
     }
 
     init {
@@ -82,6 +75,7 @@ class SecurityConfig(
                         "/resources/**",
                         "/swagger-ui/**",
                         "/v3/api-docs/**",
+                        "/actuator/**",
                         "/auth/refresh-token",
                         "/auth/login-google",
                         "/auth/login-auth",
