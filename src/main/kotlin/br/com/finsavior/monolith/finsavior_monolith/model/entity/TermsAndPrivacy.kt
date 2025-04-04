@@ -4,6 +4,8 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.TermsAndPrivacyE
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -16,7 +18,9 @@ data class TermsAndPrivacy(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
+    @Enumerated(EnumType.STRING)
     val type: TermsAndPrivacyEnum,
+    @Column(name = "content", columnDefinition = "LONGTEXT")
     val content: String,
     val version: String,
     @Column(name = "validity_start_date")
