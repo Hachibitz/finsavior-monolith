@@ -8,22 +8,24 @@ import org.springframework.stereotype.Repository
 @Repository
 interface TermsAndPrivacyRepository : JpaRepository<TermsAndPrivacy, Long> {
     @Query(
-        value = ("SELECT TOP(1) * " +
-                "FROM terms_and_conditions " +
+        value = ("SELECT * " +
+                "FROM terms_and_privacy " +
                 "WHERE del_fg <> 'S' " +
                 "AND type = 'TERMS_AND_CONDITIONS' " +
-                "AND validity_start_date < GETDATE() " +
-                "ORDER BY validity_start_date DESC"), nativeQuery = true
+                "AND validity_start_date < NOW() " +
+                "ORDER BY validity_start_date DESC " +
+                "limit 1"), nativeQuery = true
     )
     fun getCurrentTerm(): TermsAndPrivacy?
 
     @Query(
-        value = ("SELECT TOP(1) * " +
-                "FROM privacy_policy " +
+        value = ("SELECT * " +
+                "FROM terms_and_privacy " +
                 "WHERE del_fg <> 'S' " +
                 "AND type = 'PRIVACY_POLICY' " +
-                "AND validity_start_date < GETDATE() " +
-                "ORDER BY validity_start_date DESC"), nativeQuery = true
+                "AND validity_start_date < NOW() " +
+                "ORDER BY validity_start_date DESC " +
+                "limit 1"), nativeQuery = true
     )
     fun getCurrentPrivacyPolicy(): TermsAndPrivacy?
 }

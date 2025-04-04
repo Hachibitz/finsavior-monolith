@@ -6,6 +6,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
+import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAnalysisHistory
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AnalysisTypeEnum
@@ -13,6 +14,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.AnalysisHistoryRepository
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
@@ -29,21 +31,31 @@ import java.util.*
 class AiAdviceService(
     private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
+    private val analysisHistoryRepository: AnalysisHistoryRepository,
     private val promptConfig: PromptConfig,
     @Lazy private val userService: UserService
 ) {
+
+    fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO =
+        aiAdviceRepository.findById(aiAdviceId)
+            .orElseThrow { AiAdviceException("Análise não encontrada") }.toAiAnalysisDTO()
 
     fun generateAiAdviceAndInsights(request: AiAdviceDTO): AiAdviceResponseDTO {
         val currentDateTime = LocalDateTime.now()
         val user: User = userService.getUserByContext()
 
         val analysisType = getAnalysisTypeById(request.analysisTypeId) ?:
-            throw AiAdviceException("Plano não encontrado")
+            throw AiAdviceException("Tipo de análise não encontrada")
         val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
             throw AiAdviceException("Plano não encontrado")
 
-        if (!validatePlanAndAnalysisType(user.id!!, request, analysisType, planType)) {
+        if (!validatePlanAndAnalysisType(user.id!!, analysisType, planType)) {
             throw AiAdviceException("Consulta excedida pelo plano")
+        }
+
+        request.prompt = getPrompt(request)
+        if (request.prompt.isNullOrBlank()) {
+            throw AiAdviceException("O prompt não pode ser nulo ou vazio")
         }
 
         val messages = mutableListOf<Message>()
@@ -103,7 +115,6 @@ class AiAdviceService(
 
     private fun validatePlanAndAnalysisType(
         userId: Long,
-        request: AiAdviceDTO,
         analysisType: AnalysisTypeEnum,
         planType: PlanTypeEnum
     ): Boolean {
@@ -114,23 +125,23 @@ class AiAdviceService(
         val initialDate = currentDate.withDayOfMonth(1)
         val endDate = currentDate.withDayOfMonth(daysOfMonth)
 
-        val annualAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
+        val annualAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
             userId,
+            AnalysisTypeEnum.ANNUAL.analysisTypeId,
             initialDate,
-            endDate,
-            AnalysisTypeEnum.ANNUAL.analysisTypeId
+            endDate
         )
-        val trimesterAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
+        val trimesterAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
             userId,
+            AnalysisTypeEnum.TRIMESTER.analysisTypeId,
             initialDate,
-            endDate,
-            AnalysisTypeEnum.TRIMESTER.analysisTypeId
+            endDate
         )
-        val monthAiAdvicesOfMonth: Int = aiAdviceRepository.countAiAdvicesByUserIdAndMonthAndAnalysisType(
+        val monthAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
             userId,
+            AnalysisTypeEnum.MONTH.analysisTypeId,
             initialDate,
-            endDate,
-            AnalysisTypeEnum.MONTH.analysisTypeId
+            endDate
         )
 
         when (analysisType) {
@@ -219,7 +230,7 @@ class AiAdviceService(
         chatResponse: ChatResponse,
         generatedAt: LocalDateTime
     ): AiAdvice {
-        return aiAdviceRepository.save(
+        val aiAdvice = aiAdviceRepository.save(
             AiAdvice(
                 userId = userId,
                 prompt = getPrompt(request),
@@ -232,5 +243,16 @@ class AiAdviceService(
                 audit = Audit()
             )
         )
+
+        analysisHistoryRepository.save(
+            AiAnalysisHistory(
+                userId = userId,
+                analysisTypeId = request.analysisTypeId,
+                date = generatedAt,
+                audit = Audit()
+            )
+        )
+
+        return aiAdvice
     }
 }

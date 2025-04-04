@@ -30,6 +30,11 @@ class AiAdviceController(
     fun getAiAdviceAndInsights(): List<AiAnalysisDTO> =
         service.getAiAnalysisList()
 
+    @GetMapping("/get-ai-advice/{adviceId}")
+    @ResponseStatus(HttpStatus.OK)
+    fun getAiAdviceAndInsights(@PathVariable adviceId: Long): AiAnalysisDTO =
+        service.getAiAdviceById(adviceId)
+
     @DeleteMapping("/delete-analysis/{analysisId}")
     @ResponseStatus(HttpStatus.OK)
     fun deleteAnalysis(@PathVariable analysisId: Long) =

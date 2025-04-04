@@ -5,6 +5,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
 
 fun AiAdvice.toAiAnalysisDTO(): AiAnalysisDTO =
     AiAnalysisDTO(
+        id = this.id,
         userId = this.userId,
         analysisType = this.analysisTypeId,
         resultAnalysis = this.resultMessage,

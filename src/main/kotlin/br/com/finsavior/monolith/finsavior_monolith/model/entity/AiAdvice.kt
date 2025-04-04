@@ -21,9 +21,10 @@ data class AiAdvice(
     @Column(name = "analysis_type_id")
     val analysisTypeId: Int,
 
+    @Column(name = "prompt", columnDefinition = "LONGTEXT")
     val prompt: String,
     
-    @Column(name = "result_message")
+    @Column(name = "result_message", columnDefinition = "LONGTEXT")
     val resultMessage: String,
 
     val date: LocalDateTime,

@@ -39,13 +39,7 @@ class SecurityConfig(
     }
 
     companion object {
-        val ALLOWED_ORIGINS = mutableListOf<String>(
-            "http://localhost:8100",
-        )
-    }
-
-    init {
-        ALLOWED_ORIGINS.add(allowedOrigin)
+        val ALLOWED_ORIGINS = mutableListOf<String>()
     }
 
     @Bean
@@ -126,7 +120,9 @@ class SecurityConfig(
     @Bean
     fun corsFilter(): CorsFilter {
         val corsConfiguration = CorsConfiguration()
-        corsConfiguration.allowedOrigins = ALLOWED_ORIGINS
+        corsConfiguration.allowedOrigins = ALLOWED_ORIGINS.apply {
+            add(allowedOrigin)
+        }
         corsConfiguration.allowedMethods = listOf(
             HttpMethod.GET.name(),
             HttpMethod.POST.name(),
