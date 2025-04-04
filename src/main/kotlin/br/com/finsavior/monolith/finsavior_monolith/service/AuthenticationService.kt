@@ -5,7 +5,6 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordRecoveryEx
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
-import br.com.finsavior.monolith.finsavior_monolith.model.entity.PasswordResetToken
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserPlan
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserProfile
@@ -15,7 +14,6 @@ import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUser
 import br.com.finsavior.monolith.finsavior_monolith.repository.PasswordResetTokenRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.RoleRepository
-import br.com.finsavior.monolith.finsavior_monolith.repository.UserPlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.security.TokenProvider
 import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
@@ -36,15 +34,12 @@ import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
-import java.time.LocalDateTime
-import java.util.*
 
 @Service
 class AuthenticationService(
     private val userRepository: UserRepository,
     private val roleRepository: RoleRepository,
     private val planRepository: PlanRepository,
-    private val userPlanRepository: UserPlanRepository,
     private val passwordEncoder: PasswordEncoder,
     private val authenticationManager: AuthenticationManager,
     private val googleAuthService: GoogleAuthService,
@@ -143,45 +138,35 @@ class AuthenticationService(
         throw AuthTokenException("Token não validado!", HttpStatus.UNAUTHORIZED)
     }
 
-    public fun passwordRecovery(email: String) {
-        val user: User = userRepository.findByEmail(email)
+    fun passwordRecovery(email: String) {
+        val user = userRepository.findByEmail(email)
             ?: throw IllegalArgumentException("Usuário não encontrado com o e-mail fornecido.")
 
-        val token = UUID.randomUUID().toString()
-        val passwordResetToken: PasswordResetToken = PasswordResetToken()
-        passwordResetToken.token = token
-        passwordResetToken.user = user
-        passwordResetToken.expiryDate = LocalDateTime.now().plusMinutes(30)
-
-        val resetUrl = "FINSAVIOR_RESET_PASSWORD_URL${token}"
-
-        try {
-            passwordResetTokenRepository.save(passwordResetToken)
-            emailService.sendPasswordRecoveryEmail(email, resetUrl)
-        } catch (e: Exception) {
-            log.error("method: {}, message: {}, error: {}", "sendEmail", "Falha no envio do email", e.message)
-            throw PasswordRecoveryException(e.message)
-        }
+        val token = generateRecoveryToken(user)
+        emailService.sendPasswordRecoveryEmail(email, token)
     }
 
-    @Transactional
     fun resetPassword(token: String, newPassword: String) {
-        val passwordResetToken: PasswordResetToken = passwordResetTokenRepository.findByToken(token)
-            ?: throw IllegalArgumentException("Token inválido")
-
-        if (passwordResetToken.expiryDate.isBefore(LocalDateTime.now())) {
-            throw PasswordRecoveryException("Token expirado")
-        }
+        val user = validateRecoveryToken(token)
+            ?: throw IllegalArgumentException("Token inválido ou expirado.")
 
         if (!PasswordValidator.isValid(newPassword)) {
             throw PasswordRecoveryException("Senha não atende aos requisitos mínimos")
         }
 
-        val user: User = passwordResetToken.user
-        user.password = newPassword
+        user.password = passwordEncoder.encode(newPassword)
         userRepository.save(user)
+    }
 
-        passwordResetTokenRepository.delete(passwordResetToken)
+    private fun generateRecoveryToken(user: User): String {
+        return tokenProvider.generateToken(
+            UsernamePasswordAuthenticationToken(user.username, null, emptyList())
+        )
+    }
+
+    private fun validateRecoveryToken(token: String): User? {
+        val username = tokenProvider.getUsernameFromToken(token)
+        return userRepository.findByUsername(username)
     }
 
     private fun setCookieProperties(

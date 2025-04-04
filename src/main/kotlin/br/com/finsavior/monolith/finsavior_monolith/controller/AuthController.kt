@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.PasswordRecoveryRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ResetPasswordDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.AuthenticationService
@@ -54,11 +55,11 @@ class AuthController(private val authenticationService: AuthenticationService) {
 
     @PostMapping("/password-recovery")
     @ResponseStatus(HttpStatus.OK)
-    fun passwordRecovery(@RequestParam email: String) =
-        authenticationService.passwordRecovery(email)
+    fun passwordRecovery(@RequestBody passwordRecoveryRequestDTO :PasswordRecoveryRequestDTO) =
+        authenticationService.passwordRecovery(passwordRecoveryRequestDTO.email)
 
     @PostMapping("/reset-password")
     @ResponseStatus(HttpStatus.OK)
     fun resetPassword(@RequestBody resetPasswordDTO: ResetPasswordDTO) =
-        authenticationService.resetPassword(resetPasswordDTO.token, resetPasswordDTO.newPasswordDTO)
+        authenticationService.resetPassword(resetPasswordDTO.token, resetPasswordDTO.newPassword)
 }

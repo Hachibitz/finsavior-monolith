@@ -39,7 +39,9 @@ class SecurityConfig(
     }
 
     companion object {
-        val ALLOWED_ORIGINS = mutableListOf<String>()
+        val ALLOWED_ORIGINS = mutableListOf<String>(
+            "http://localhost:8100",
+        )
     }
 
     init {
