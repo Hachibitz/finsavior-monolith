@@ -57,7 +57,7 @@ class StripeWebhookService(
 
             when (webhookRequestDTO.eventType) {
                 EventTypeEnum.CHECKOUT_SESSION_COMPLETED -> {
-                    userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id)
+                    userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id!!)
 
                     externalUserRepository.findByUserId(user.id)
                         ?.let { externalUser -> externalUserRepository.delete(externalUser) }
@@ -94,7 +94,7 @@ class StripeWebhookService(
                     if(webhookRequestDTO.planType == PlanTypeEnum.FREE) {
                         userService.downgradeToFree(webhookRequestDTO.email)
                     } else {
-                        userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id)
+                        userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id!!)
                     }
 
                     externalUserRepository.findByUserId(user.id)
@@ -130,7 +130,7 @@ class StripeWebhookService(
                     val email = session.customerDetails.email ?: throw IllegalStateException("Email não encontrado")
                     val user = userRepository.findByEmail(email) ?: throw IllegalArgumentException("Usuário não encontrado")
 
-                    session.toWebhookRequestDTO(eventType, planType, subscriptionId, user.id)
+                    session.toWebhookRequestDTO(eventType, planType!!, subscriptionId, user.id)
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_UPDATED.value -> {
@@ -227,7 +227,7 @@ class StripeWebhookService(
         return when {
             isImmediateCancel -> SubscriptionUpdateType.CancelImmediately
             cancelAtPeriodEnd -> SubscriptionUpdateType.CancelAtPeriodEnd
-            else -> SubscriptionUpdateType.ChangePlan(planType)
+            else -> SubscriptionUpdateType.ChangePlan(planType!!)
         }
     }
 }

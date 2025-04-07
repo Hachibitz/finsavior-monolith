@@ -1,22 +1,33 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.enums
 
-import java.util.*
+import br.com.finsavior.monolith.finsavior_monolith.config.properties.PlanIdProperties
 
-enum class PlanTypeEnum(val id: String, val amountOfMonthAnalysisPerMonth: Int, val amountOfTrimesterAnalysisPerMonth: Int, val amountOfAnnualAnalysisPerMonth: Int) {
+enum class PlanTypeEnum(
+    var id: String,
+    val amountOfMonthAnalysisPerMonth: Int,
+    val amountOfTrimesterAnalysisPerMonth: Int,
+    val amountOfAnnualAnalysisPerMonth: Int
+) {
     FREE("1L", 1, 0, 0),
-    STRIPE_BASIC_MONTHLY("prod_S4glYFmVdBHCgV", 3, 1, 0),
-    STRIPE_BASIC_ANNUAL("prod_S4gn06jEDZZ0Sk", 3, 1, 0),
-    STRIPE_PLUS_MONTHLY("prod_S4goVk8ymnbNd7", 12, 3, 1),
-    STRIPE_PLUS_ANNUAL("prod_S4goyrBbOeFrR2", 12, 3, 1),
-    STRIPE_PREMIUM_ANNUAL("prod_S4gsYwP1g3VUYG", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE),
-    STRIPE_PREMIUM_MONTHLY("prod_S4gq1Q2s1Et4tm", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE);
+    STRIPE_BASIC_MONTHLY("UNSET", 3, 1, 0),
+    STRIPE_BASIC_ANNUAL("UNSET", 3, 1, 0),
+    STRIPE_PLUS_MONTHLY("UNSET", 12, 3, 1),
+    STRIPE_PLUS_ANNUAL("UNSET", 12, 3, 1),
+    STRIPE_PREMIUM_ANNUAL("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE),
+    STRIPE_PREMIUM_MONTHLY("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE);
 
     companion object {
-        fun fromProductId(value: String): PlanTypeEnum {
-            return Arrays.stream<PlanTypeEnum>(PlanTypeEnum.entries.toTypedArray())
-                .filter { planType: PlanTypeEnum -> planType.id == value }
-                .findFirst()
-                .orElse(null)
+        fun fromProductId(value: String): PlanTypeEnum? {
+            return entries.firstOrNull { it.id == value }
+        }
+
+        fun initialize(planProps: PlanIdProperties) {
+            STRIPE_BASIC_MONTHLY.id = planProps.STRIPE_BASIC_MONTHLY
+            STRIPE_BASIC_ANNUAL.id = planProps.STRIPE_BASIC_ANNUAL
+            STRIPE_PLUS_MONTHLY.id = planProps.STRIPE_PLUS_MONTHLY
+            STRIPE_PLUS_ANNUAL.id = planProps.STRIPE_PLUS_ANNUAL
+            STRIPE_PREMIUM_MONTHLY.id = planProps.STRIPE_PREMIUM_MONTHLY
+            STRIPE_PREMIUM_ANNUAL.id = planProps.STRIPE_PREMIUM_ANNUAL
         }
     }
 }

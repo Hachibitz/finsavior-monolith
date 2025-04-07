@@ -163,14 +163,14 @@ class UserService(
         val user = userRepository.findByEmail(email) ?: return
         val newPlan = getPlanTypeByPlanId(planId)
 
-        user.userPlan!!.plan = planRepository.findById(newPlan.id).get()
+        user.userPlan!!.plan = planRepository.findById(newPlan.id!!).get()
         userRepository.save(user)
     }
 
     fun downgradeToFree(email: String?) {
         email ?: return
         val user = userRepository.findByEmail(email) ?: return
-        user.userPlan!!.plan = planRepository.findById(PlanTypeEnum.FREE.id).get()
+        user.userPlan!!.plan = planRepository.findById(PlanTypeEnum.FREE.id!!).get()
         userRepository.save(user)
     }
 

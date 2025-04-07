@@ -58,7 +58,7 @@ class PaymentService(
             val user: Optional<User> = userRepository.findById(externalUserDto.userId)
             val planId: String? = externalUserDto.planId
 
-            val planChangeHistory: PlanChangeHistory = getPlanchangeHistory(externalUserDto, planId!!)
+            val planChangeHistory: PlanChangeHistory = getPlanChangeHistory(externalUserDto, planId!!)
             setUserPlan(user.get(), planId)
 
             userRepository.save(user.get())
@@ -131,7 +131,7 @@ class PaymentService(
 
         val planEnum = PlanTypeEnum.valueOf(planType)
         val productId = planEnum.id
-        val prices = stripeClient.getPricesByProduct(productId)
+        val prices = stripeClient.getPricesByProduct(productId!!)
         val newPriceId = prices.data.firstOrNull()?.id
             ?: throw IllegalStateException("Preço não encontrado para o plano $planType")
 
@@ -163,13 +163,13 @@ class PaymentService(
 
     private fun getPlanIdByPlanType(planType: String): String =
         when (planType) {
-            PlanTypeEnum.STRIPE_BASIC_MONTHLY.name -> PlanTypeEnum.STRIPE_BASIC_MONTHLY.id
-            PlanTypeEnum.STRIPE_BASIC_ANNUAL.name -> PlanTypeEnum.STRIPE_BASIC_ANNUAL.id
-            PlanTypeEnum.STRIPE_PLUS_MONTHLY.name -> PlanTypeEnum.STRIPE_PLUS_MONTHLY.id
-            PlanTypeEnum.STRIPE_PLUS_ANNUAL.name -> PlanTypeEnum.STRIPE_PLUS_ANNUAL.id
-            PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.name -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id
-            PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.name -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id
-            else -> PlanTypeEnum.FREE.id
+            PlanTypeEnum.STRIPE_BASIC_MONTHLY.name -> PlanTypeEnum.STRIPE_BASIC_MONTHLY.id!!
+            PlanTypeEnum.STRIPE_BASIC_ANNUAL.name -> PlanTypeEnum.STRIPE_BASIC_ANNUAL.id!!
+            PlanTypeEnum.STRIPE_PLUS_MONTHLY.name -> PlanTypeEnum.STRIPE_PLUS_MONTHLY.id!!
+            PlanTypeEnum.STRIPE_PLUS_ANNUAL.name -> PlanTypeEnum.STRIPE_PLUS_ANNUAL.id!!
+            PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.name -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id!!
+            PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.name -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id!!
+            else -> PlanTypeEnum.FREE.id!!
         }
 
     private fun saveExternalUser(request: SubscriptionDTO, userId: Long) {
@@ -211,12 +211,12 @@ class PaymentService(
             .findFirst()
             .orElse(null)
 
-    private fun getPlanchangeHistory(externalUserdto: ExternalUserDTO, planId: String): PlanChangeHistory {
+    private fun getPlanChangeHistory(externalUserdto: ExternalUserDTO, planId: String): PlanChangeHistory {
         return PlanChangeHistory(
             userId = externalUserdto.userId,
             externalUserId = externalUserdto.externalUserId,
             planId = planId,
-            planType = PlanTypeEnum.fromProductId(externalUserdto.planId!!),
+            planType = PlanTypeEnum.fromProductId(externalUserdto.planId!!)!!,
             updateTime = LocalDateTime.now(),
             audit = Audit()
         )

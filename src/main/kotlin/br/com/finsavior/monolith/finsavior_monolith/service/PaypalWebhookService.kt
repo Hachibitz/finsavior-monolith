@@ -110,7 +110,7 @@ class PaypalWebhookService(
     fun upgradeUserPlan(externalUser: ExternalUserDTO, webhookRequestDTO: WebhookRequestDTO) {
         if (externalUser.planId == PlanTypeEnum.FREE.id) {
             externalUser.planId =
-                PlanTypeEnum.fromProductId(webhookRequestDTO.resource!!.planId).id
+                PlanTypeEnum.fromProductId(webhookRequestDTO.resource!!.planId)!!.id
             paymentService.updateUserPlan(externalUser)
         }
     }

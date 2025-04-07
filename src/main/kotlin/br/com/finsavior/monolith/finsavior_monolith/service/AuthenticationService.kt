@@ -229,7 +229,7 @@ class AuthenticationService(
         request.toUser().apply { password = passwordEncoder.encode(request.password) }
 
     private fun linkFreePlanToUserSignUp(user: User) {
-        val plan = planRepository.findById(PlanTypeEnum.FREE.id)
+        val plan = planRepository.findById(PlanTypeEnum.FREE.id!!)
             .orElseThrow { IllegalArgumentException("Plano não encontrado") }
         user.userPlan = UserPlan(
             plan = plan,
