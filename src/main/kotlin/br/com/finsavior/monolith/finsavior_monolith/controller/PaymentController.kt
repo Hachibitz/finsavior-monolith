@@ -24,6 +24,7 @@ class PaymentController(
         paymentService.createSubscription(subscription)
 
     @PostMapping("/subscription/create-checkout")
+    @ResponseStatus(HttpStatus.CREATED)
     fun createCheckoutSession(@RequestBody request: CheckoutSessionDTO): CheckoutSessionDTO =
         paymentService.createCheckoutSession(request.planType!!, request.email!!)
 
@@ -33,7 +34,13 @@ class PaymentController(
         paymentService.cancelSubscription(immediate)
 
     @PostMapping("/subscription/update")
+    @ResponseStatus(HttpStatus.CREATED)
     fun updatePlan(@RequestBody request: UpdateSubscriptionDTO) =
         paymentService.updateSubscription(request.planType, request.email)
+
+    @PostMapping("/subscription/customer-portal")
+    @ResponseStatus(HttpStatus.OK)
+    fun createCustomerPortalSession(@RequestParam email: String): Map<String, String> =
+        paymentService.createCustomerPortalSession(email)
 
 }

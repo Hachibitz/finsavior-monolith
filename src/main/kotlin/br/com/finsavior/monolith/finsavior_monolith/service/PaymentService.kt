@@ -16,7 +16,9 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
+import com.stripe.model.Customer
 import com.stripe.model.checkout.Session
+import com.stripe.param.CustomerListParams
 import com.stripe.param.checkout.SessionCreateParams
 import mu.KLogger
 import mu.KotlinLogging
@@ -97,6 +99,24 @@ class PaymentService(
         )
 
         return CheckoutSessionDTO(url = session.url)
+    }
+
+    fun createCustomerPortalSession(email: String): Map<String, String> {
+        val customer = Customer.list(
+            CustomerListParams.builder()
+                .setEmail(email)
+                .setLimit(1)
+                .build()
+        ).data.firstOrNull() ?: throw IllegalStateException("Cliente não encontrado para o e-mail: $email")
+
+        val params = com.stripe.param.billingportal.SessionCreateParams.builder()
+            .setCustomer(customer.id)
+            .setReturnUrl("$finsaviorHostUrl/my-account")
+            .build()
+
+        val session = com.stripe.model.billingportal.Session.create(params)
+
+        return mapOf("url" to session.url)
     }
 
     fun updateSubscription(planType: String, email: String) {
