@@ -1,7 +1,8 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller.webhook
 
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.WebhookRequestDTO
-import br.com.finsavior.monolith.finsavior_monolith.service.strategy.WebhookService
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.PaypalWebhookRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toWebhookRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.service.PaypalWebhookService
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -10,14 +11,11 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/webhook")
 class PaypalController(
-    private val webhookService: WebhookService
+    private val paypalWebhookService: PaypalWebhookService
 ) {
 
-    companion object {
-        const val PAYPAL_WEBHOOK_QUEUE = "br.com.finsavior.webhook.request"
-    }
-
     @PostMapping("/subscription")
-    fun webhookListener(@RequestBody webhookRequestDTO: WebhookRequestDTO) =
-        webhookService.sendMessage(webhookRequestDTO, PAYPAL_WEBHOOK_QUEUE)
+    fun webhookListener(@RequestBody paypalWebhookRequestDTO: PaypalWebhookRequestDTO) {
+        paypalWebhookService.sendMessage(paypalWebhookRequestDTO.toWebhookRequestDTO())
+    }
 }

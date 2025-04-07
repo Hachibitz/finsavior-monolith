@@ -4,6 +4,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.AuthTokenException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordRecoveryException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserPlan
@@ -82,6 +83,15 @@ class AuthenticationService(
         response.addCookie(refreshTokenCookie)
 
         return ResponseEntity.ok(mapOf("accessToken" to accessToken, "refreshToken" to refreshToken))
+    }
+
+    fun validateLogin(loginRequest: LoginRequestDTO) {
+        val user = userRepository.findByUsername(loginRequest.username)
+            ?: throw RuntimeException("Usuário não encontrado")
+
+        if (!passwordEncoder.matches(loginRequest.password, user.password)) {
+            throw RuntimeException("Senha inválida")
+        }
     }
 
     fun loginWithGoogle(
@@ -189,10 +199,10 @@ class AuthenticationService(
     }
 
     @Transactional
-    fun signUp(signUpDTO: SignUpDTO): ResponseEntity<String> {
+    fun signUp(signUpDTO: SignUpDTO): ResponseEntity<SignUpResponseDTO> {
         val validationErrors = signUpValidations(signUpDTO)
         if (validationErrors != null) {
-            return ResponseEntity.badRequest().body(validationErrors)
+            return ResponseEntity.badRequest().body(SignUpResponseDTO(validationErrors))
         }
 
         val user = getUserForRegistration(signUpDTO)
@@ -200,7 +210,7 @@ class AuthenticationService(
 
         userInitConfig(savedUser)
 
-        return ResponseEntity.ok("Cadastro realizado com sucesso!")
+        return ResponseEntity.ok(SignUpResponseDTO("Cadastro realizado com sucesso!"))
     }
 
     private fun userInitConfig(user: User) {

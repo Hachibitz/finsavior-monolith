@@ -35,6 +35,13 @@ class AuthController(private val authenticationService: AuthenticationService) {
         return authenticationService.login(loginRequest, request, response)
     }
 
+    @PostMapping("/validate-login")
+    @ResponseStatus(HttpStatus.OK)
+    fun login(
+        @RequestBody loginRequest: LoginRequestDTO
+    ) =
+        authenticationService.validateLogin(loginRequest)
+
     @PostMapping("/login-google")
     fun loginWithGoogle(
         @RequestBody idTokenString: String,

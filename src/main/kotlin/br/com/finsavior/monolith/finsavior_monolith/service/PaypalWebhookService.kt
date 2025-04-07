@@ -5,11 +5,11 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WebhookException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ExternalUserDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.WebhookRequestDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.PaypalEventTypeEnum.BILLING_SUBSCRIPTION_ACTIVATED
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.PaypalEventTypeEnum.BILLING_SUBSCRIPTION_CANCELLED
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.PaypalEventTypeEnum.BILLING_SUBSCRIPTION_EXPIRED
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.PaypalEventTypeEnum.BILLING_SUBSCRIPTION_PAYMENT_FAILED
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.PaypalEventTypeEnum.BILLING_SUBSCRIPTION_SUSPENDED
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum.BILLING_SUBSCRIPTION_ACTIVATED
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum.BILLING_SUBSCRIPTION_CANCELLED
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum.BILLING_SUBSCRIPTION_EXPIRED
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum.BILLING_SUBSCRIPTION_PAYMENT_FAILED
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum.BILLING_SUBSCRIPTION_SUSPENDED
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toExternalUserDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
@@ -27,9 +27,9 @@ class PaypalWebhookService(
 
     private val log: KLogger = KotlinLogging.logger {}
 
-    override fun sendMessage(webhookRequestDTO: WebhookRequestDTO, queueName: String) {
+    override fun sendMessage(webhookRequestDTO: WebhookRequestDTO) {
         try {
-            webhookProducer.sendMessage(webhookRequestDTO, queueName)
+            webhookProducer.sendMessage(webhookRequestDTO)
         } catch (e: Exception) {
             log.error("Error while sending message for webhook event, error = ${e.message}")
             throw WebhookException("Error while sending message for webhook event, error = ${e.message}", e)
@@ -39,7 +39,7 @@ class PaypalWebhookService(
     override fun processWebhook(webhookRequestDTO: WebhookRequestDTO) {
         val externalUserdto: ExternalUserDTO
         try {
-            externalUserdto = externalUserRepository.findBySubscriptionId(webhookRequestDTO.resource.id)!!.toExternalUserDTO()
+            externalUserdto = externalUserRepository.findBySubscriptionId(webhookRequestDTO.resource!!.id)!!.toExternalUserDTO()
 
             when (webhookRequestDTO.eventType) {
                 BILLING_SUBSCRIPTION_ACTIVATED -> activatedEvent(externalUserdto, webhookRequestDTO)
@@ -54,7 +54,7 @@ class PaypalWebhookService(
         }
     }
 
-    override fun suspendedEvent(externalUser: ExternalUserDTO) {
+    fun suspendedEvent(externalUser: ExternalUserDTO) {
         try {
             downgradeUserPlan(externalUser)
         } catch (e: Exception) {
@@ -62,7 +62,7 @@ class PaypalWebhookService(
         }
     }
 
-    override fun paymentFailedEvent(externalUser: ExternalUserDTO) {
+    fun paymentFailedEvent(externalUser: ExternalUserDTO) {
         try {
             downgradeUserPlan(externalUser)
         } catch (e: Exception) {
@@ -70,7 +70,7 @@ class PaypalWebhookService(
         }
     }
 
-    override fun cancelledEvent(externalUser: ExternalUserDTO) {
+    fun cancelledEvent(externalUser: ExternalUserDTO) {
         try {
             downgradeUserPlan(externalUser)
         } catch (e: Exception) {
@@ -78,7 +78,7 @@ class PaypalWebhookService(
         }
     }
 
-    override fun expiredEvent(externalUser: ExternalUserDTO) {
+    fun expiredEvent(externalUser: ExternalUserDTO) {
         try {
             downgradeUserPlan(externalUser)
         } catch (e: Exception) {
@@ -86,7 +86,7 @@ class PaypalWebhookService(
         }
     }
 
-    override fun activatedEvent(externalUser: ExternalUserDTO, webhookRequestDTO: WebhookRequestDTO) {
+    fun activatedEvent(externalUser: ExternalUserDTO, webhookRequestDTO: WebhookRequestDTO) {
         try {
             upgradeUserPlan(externalUser, webhookRequestDTO)
         } catch (e: Exception) {
@@ -94,22 +94,23 @@ class PaypalWebhookService(
         }
     }
 
-    override fun createdEvent(externalUser: ExternalUserDTO?, webhookRequestDTO: WebhookRequestDTO?) {
+    fun createdEvent(externalUser: ExternalUserDTO?, webhookRequestDTO: WebhookRequestDTO?) {
     }
 
-    override fun downgradeUserPlan(externalUser: ExternalUserDTO) {
-        if ((externalUser.planId == PlanTypeEnum.PLUS.id ||
+    fun downgradeUserPlan(externalUser: ExternalUserDTO) {
+        TODO()
+        /*if ((externalUser.planId == PlanTypeEnum.PLUS.id ||
                     externalUser.planId == PlanTypeEnum.PREMIUM.id)
         ) {
             externalUser.planId = PlanTypeEnum.FREE.id
             paymentService.updateUserPlan(externalUser)
-        }
+        }*/
     }
 
-    override fun upgradeUserPlan(externalUser: ExternalUserDTO, webhookRequestDTO: WebhookRequestDTO) {
+    fun upgradeUserPlan(externalUser: ExternalUserDTO, webhookRequestDTO: WebhookRequestDTO) {
         if (externalUser.planId == PlanTypeEnum.FREE.id) {
             externalUser.planId =
-                PlanTypeEnum.fromValue(webhookRequestDTO.resource.planId).id
+                PlanTypeEnum.fromProductId(webhookRequestDTO.resource!!.planId).id
             paymentService.updateUserPlan(externalUser)
         }
     }

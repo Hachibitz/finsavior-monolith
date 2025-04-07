@@ -79,7 +79,8 @@ class SecurityConfig(
                         "/auth/password-recovery",
                         "/auth/reset-password",
                         "/auth/validate-token",
-                        "/terms-and-privacy/**"
+                        "/terms-and-privacy/**",
+                        "/stripe/payment/webhook",
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(

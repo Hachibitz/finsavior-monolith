@@ -4,6 +4,8 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.ExternalProvider
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -16,15 +18,16 @@ data class ExternalUser(
     val id: Long? = null,
 
     @Column(name = "subscription_id")
-    var subscriptionId: String,
+    var subscriptionId: String? = null,
 
     @Column(name = "external_user_id")
-    var externalUserId: String,
+    var externalUserId: String? = null,
 
     @Column(name = "external_user_email")
-    var externalUserEmail: String,
+    var externalUserEmail: String? = null,
 
     @Column(name = "service_name")
+    @Enumerated(EnumType.STRING)
     var externalProvider: ExternalProvider,
 
     @Column(name = "user_id")

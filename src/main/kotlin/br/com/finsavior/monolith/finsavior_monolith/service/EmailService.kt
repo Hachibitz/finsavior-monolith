@@ -10,7 +10,7 @@ import java.io.File
 @Service
 class EmailService(
     private val mailSender: JavaMailSender,
-    @Value ("\${finsavior.reset-password-url}") private val resetPasswordUrl: String,
+    @Value ("\${finsavior.host-url}") private val finsaviorHostUrl: String,
 ) {
 
     fun sendPasswordRecoveryEmail(email: String, token: String) {
@@ -39,7 +39,7 @@ class EmailService(
                     </div>
                     <p><button onclick="copyToken()">Copiar Token</button></p>
                     <p>Ou clique no link abaixo para redefinir sua senha:</p>
-                    <a href="$resetPasswordUrl$token">Redefinir Senha</a>
+                    <a href="$finsaviorHostUrl/password-forgotten/$token">Redefinir Senha</a>
                     <p>Se você não solicitou a redefinição de senha, por favor ignore este email.</p>
                 </div>
                 <script>

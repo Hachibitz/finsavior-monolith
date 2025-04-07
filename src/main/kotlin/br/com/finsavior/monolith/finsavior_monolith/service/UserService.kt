@@ -12,9 +12,11 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserTransactionManager
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.UserAccountDeleteStatusEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUserProfileDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserTransactionManagerRepository
 import mu.KLogger
@@ -33,6 +35,7 @@ import java.util.*
 @Service
 class UserService(
     private val userRepository: UserRepository,
+    private val planRepository: PlanRepository,
     private val userTransactionManagerRepository: UserTransactionManagerRepository,
     private val externalUserRepository: ExternalUserRepository,
     private val deleteAccountProducer: DeleteAccountProducer,
@@ -156,6 +159,21 @@ class UserService(
         }
     }
 
+    fun updatePlanByEmail(email: String, planId: String) {
+        val user = userRepository.findByEmail(email) ?: return
+        val newPlan = getPlanTypeByPlanId(planId)
+
+        user.userPlan!!.plan = planRepository.findById(newPlan.id).get()
+        userRepository.save(user)
+    }
+
+    fun downgradeToFree(email: String?) {
+        email ?: return
+        val user = userRepository.findByEmail(email) ?: return
+        user.userPlan!!.plan = planRepository.findById(PlanTypeEnum.FREE.id).get()
+        userRepository.save(user)
+    }
+
     @Transactional
     fun deleteAccount(request: DeleteAccountRequestDTO) {
         val user: User? = userRepository.findByUsername(request.username)
@@ -182,6 +200,17 @@ class UserService(
             throw DeleteUserException("Erro na exclusão: usuário não encontrado.")
         }
     }
+
+    private fun getPlanTypeByPlanId(priceId: String): PlanTypeEnum =
+        when (priceId) {
+            PlanTypeEnum.STRIPE_BASIC_MONTHLY.id -> PlanTypeEnum.STRIPE_BASIC_MONTHLY
+            PlanTypeEnum.STRIPE_BASIC_ANNUAL.id -> PlanTypeEnum.STRIPE_BASIC_ANNUAL
+            PlanTypeEnum.STRIPE_PLUS_MONTHLY.id -> PlanTypeEnum.STRIPE_PLUS_MONTHLY
+            PlanTypeEnum.STRIPE_PLUS_ANNUAL.id -> PlanTypeEnum.STRIPE_PLUS_ANNUAL
+            PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY
+            PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL
+            else -> PlanTypeEnum.FREE
+        }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     private fun updateUserDeleteStatus(userTransactionManager: UserTransactionManager, statusId: Int) {

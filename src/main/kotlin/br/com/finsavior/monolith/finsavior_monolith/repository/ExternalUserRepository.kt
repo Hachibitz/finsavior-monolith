@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ExternalUserRepository : JpaRepository<ExternalUser, Long> {
     fun deleteByUserId(userId: Long)
     fun findBySubscriptionId(subscriptionId: String): ExternalUser?
+    fun findByUserId(id: Long?): ExternalUser?
 }

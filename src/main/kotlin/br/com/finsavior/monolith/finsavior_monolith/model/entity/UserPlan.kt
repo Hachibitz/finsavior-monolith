@@ -5,7 +5,7 @@ import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
-import jakarta.persistence.OneToOne
+import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 
 @Entity
@@ -15,9 +15,9 @@ class UserPlan (
     @Column(name = "user_id")
     var userId: Long,
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "plan_id")
-    val plan: Plan,
+    var plan: Plan,
 
     @Embedded
     var audit: Audit? = null

@@ -56,6 +56,11 @@ class EmbeddedRabbitMQConfig {
     }
 
     @Bean
+    fun webhookRequestQueue(): Queue {
+        return Queue("br.com.finsavior.webhook-request", true, false, false)
+    }
+
+    @Bean
     fun listenerContainerFactory(connectionFactory: ConnectionFactory): SimpleRabbitListenerContainerFactory {
         return SimpleRabbitListenerContainerFactory().apply {
             setConnectionFactory(connectionFactory)

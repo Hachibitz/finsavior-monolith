@@ -42,6 +42,8 @@ dependencies {
 	implementation("com.google.api-client:google-api-client:2.7.2")
 	implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:0.8.1-SNAPSHOT")
 	implementation("org.springframework.boot:spring-boot-starter-actuator:3.4.4")
+	implementation("com.stripe:stripe-java:24.8.0")
+	implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

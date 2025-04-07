@@ -15,6 +15,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.AnalysisHistoryRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
@@ -33,6 +34,7 @@ class AiAdviceService(
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AnalysisHistoryRepository,
     private val promptConfig: PromptConfig,
+    private val planRepository: PlanRepository,
     @Lazy private val userService: UserService
 ) {
 
@@ -49,7 +51,7 @@ class AiAdviceService(
         val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
             throw AiAdviceException("Plano não encontrado")
 
-        if (!validatePlanAndAnalysisType(user.id!!, analysisType, planType)) {
+        if (!validatePlanAndAnalysisType(user, analysisType, planType)) {
             throw AiAdviceException("Consulta excedida pelo plano")
         }
 
@@ -89,6 +91,10 @@ class AiAdviceService(
         }
 
         val advice = saveAiAdvice(user.id!!, request, chatResponse, currentDateTime)
+        if (planType == PlanTypeEnum.FREE && !user.userPlan!!.plan.hasUserFreeAnalysis) {
+            user.userPlan!!.plan.hasUserFreeAnalysis = true
+            planRepository.save(user.userPlan!!.plan)
+        }
 
         return AiAdviceResponseDTO(advice.id!!)
     }
@@ -114,10 +120,15 @@ class AiAdviceService(
     }
 
     private fun validatePlanAndAnalysisType(
-        userId: Long,
+        user: User,
         analysisType: AnalysisTypeEnum,
         planType: PlanTypeEnum
     ): Boolean {
+        if (planType == PlanTypeEnum.FREE) {
+            if(user.userPlan!!.plan.hasUserFreeAnalysis) return false
+        }
+
+        val userId: Long = user.id!!
         val currentDate = LocalDateTime.now()
         val yearMonth = YearMonth.of(currentDate.year, currentDate.month)
         val daysOfMonth = yearMonth.lengthOfMonth()

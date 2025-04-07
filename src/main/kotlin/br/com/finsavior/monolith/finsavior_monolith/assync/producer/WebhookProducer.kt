@@ -11,13 +11,17 @@ class WebhookProducer(
     private val rabbitTemplate: RabbitTemplate
 ) {
 
+    companion object {
+        const val WEBHOOK_QUEUE = "br.com.finsavior.webhook-request"
+    }
+
     private val log: KLogger = KotlinLogging.logger {}
 
-    fun sendMessage(message: WebhookRequestDTO, queueName: String) {
-        log.info("Sending message to: $queueName")
+    fun sendMessage(message: WebhookRequestDTO) {
+        log.info("Sending message to: $WEBHOOK_QUEUE")
         rabbitTemplate.convertAndSend(
             "", // exchange default
-            queueName,
+            WEBHOOK_QUEUE,
             message
         )
     }
