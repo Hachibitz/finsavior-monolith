@@ -1,12 +1,12 @@
 spring:
   application:
-    name: dev
+    name: ${finsavior.active-profile}
   cloud:
     config:
       uri: http://localhost:8084
       enabled: true
       fail-fast: true
-      name: dev
+      name: ${finsavior.active-profile}
       profile: ''
       label: finsavior-monolith
 
