@@ -17,7 +17,7 @@ class EmailService(
         val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
         message.setTo(email)
         message.setSubject("Redefinição de senha")
-        message.setText(buildEmailContent(token), true)
+        message.setText(buildPasswordRecoveryEmailContent(token), true)
 
         val logoFile = FileSystemResource(File("src/main/resources/logo/logo v2 complete.png"))
         message.addInline("logo", logoFile)
@@ -25,7 +25,40 @@ class EmailService(
         mailSender.send(message.mimeMessage)
     }
 
-    private fun buildEmailContent(token: String): String {
+    fun sendInvoicePaymentFailedEmail(email: String) {
+        val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setTo(email)
+        message.setSubject("Falha no pagamento da assinatura")
+        message.setText(buildPaymentFailedEmailContent(), true)
+
+        val logoFile = FileSystemResource(File("src/main/resources/logo/logo v2 complete.png"))
+        message.addInline("logo", logoFile)
+
+        mailSender.send(message.mimeMessage)
+    }
+
+    private fun buildPaymentFailedEmailContent(): String {
+        return """
+        <html>
+        <body>
+            <div style="text-align: center;">
+                <img src="cid:logo" alt="Logo" style="width: 150px;"/>
+                <h2>Falha no Pagamento</h2>
+                <p>Olá,</p>
+                <p>Notamos que houve uma falha ao processar o pagamento da sua assinatura.</p>
+                <p>Isso pode ocorrer por diversos motivos, como cartão expirado ou saldo insuficiente.</p>
+                <p>Por favor, acesse sua conta para atualizar suas informações de pagamento e evitar a interrupção do seu plano:</p>
+                <a href="$finsaviorHostUrl/my-account">Atualizar pagamento</a>
+                <p>Se você tiver qualquer dúvida, entre em contato conosco.</p>
+                <br/>
+                <p>Equipe FinSavior</p>
+            </div>
+        </body>
+        </html>
+    """.trimIndent()
+    }
+
+    private fun buildPasswordRecoveryEmailContent(token: String): String {
         return """
             <html>
             <body>

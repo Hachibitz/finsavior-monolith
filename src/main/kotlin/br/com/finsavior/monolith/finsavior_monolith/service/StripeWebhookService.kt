@@ -33,7 +33,8 @@ class StripeWebhookService(
     @Value("\${stripe.webhook-secret}") private val endpointSecret: String,
     private val stripeClient: StripeClient,
     private val externalUserRepository: ExternalUserRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val emailService: EmailService
 ) : WebhookService {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -74,9 +75,7 @@ class StripeWebhookService(
                 }
 
                 EventTypeEnum.INVOICE_PAYMENT_FAILED -> {
-                    // enviar um e-mail de aviso?
-                    // registrar o evento, ou iniciar contagem para downgrade automático?
-                    TODO("Implementar lógica para falha de pagamento")
+                    emailService.sendInvoicePaymentFailedEmail(webhookRequestDTO.email!!)
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_UPDATED -> {
