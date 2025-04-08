@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query
 import java.time.LocalDateTime
 
 interface AiAdviceRepository : JpaRepository<AiAdvice, Long> {
+    fun existsByUserIdAndIsFreeAnalysisTrue(userId: Long): Boolean
+
     fun deleteByUserId(userId: Long)
 
     @Query(

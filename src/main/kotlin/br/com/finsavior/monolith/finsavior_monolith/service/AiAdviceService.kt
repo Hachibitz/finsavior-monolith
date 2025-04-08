@@ -51,7 +51,8 @@ class AiAdviceService(
         val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
             throw AiAdviceException("Plano não encontrado")
 
-        if (!validatePlanAndAnalysisType(user, analysisType, planType)) {
+        val hasUsedFreeAnalysis = aiAdviceRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
+        if (!validatePlanAndAnalysisType(user, analysisType, planType, hasUsedFreeAnalysis)) {
             throw AiAdviceException("Consulta excedida pelo plano")
         }
 
@@ -90,11 +91,8 @@ class AiAdviceService(
             throw AiAdviceException("Falha na comunicação com a API de IA", e)
         }
 
-        val advice = saveAiAdvice(user.id!!, request, chatResponse, currentDateTime)
-        if (planType == PlanTypeEnum.FREE && !user.userPlan!!.plan.hasUserFreeAnalysis) {
-            user.userPlan!!.plan.hasUserFreeAnalysis = true
-            planRepository.save(user.userPlan!!.plan)
-        }
+        val isFree = planType == PlanTypeEnum.FREE && !hasUsedFreeAnalysis
+        val advice = saveAiAdvice(user.id!!, request, chatResponse, currentDateTime, isFree)
 
         return AiAdviceResponseDTO(advice.id!!)
     }
@@ -122,10 +120,11 @@ class AiAdviceService(
     private fun validatePlanAndAnalysisType(
         user: User,
         analysisType: AnalysisTypeEnum,
-        planType: PlanTypeEnum
+        planType: PlanTypeEnum,
+        hasUsedFreeAnalysis: Boolean,
     ): Boolean {
-        if (planType == PlanTypeEnum.FREE) {
-            if(user.userPlan!!.plan.hasUserFreeAnalysis) return false
+        if (planType == PlanTypeEnum.FREE && hasUsedFreeAnalysis) {
+            return false
         }
 
         val userId: Long = user.id!!
@@ -239,7 +238,8 @@ class AiAdviceService(
         userId: Long,
         request: AiAdviceDTO,
         chatResponse: ChatResponse,
-        generatedAt: LocalDateTime
+        generatedAt: LocalDateTime,
+        isFree: Boolean
     ): AiAdvice {
         val aiAdvice = aiAdviceRepository.save(
             AiAdvice(
@@ -251,6 +251,7 @@ class AiAdviceService(
                 date = generatedAt,
                 startDate = request.startDate,
                 finishDate = request.finishDate,
+                isFreeAnalysis = isFree,
                 audit = Audit()
             )
         )
