@@ -11,10 +11,12 @@ import java.io.File
 class EmailService(
     private val mailSender: JavaMailSender,
     @Value ("\${finsavior.host-url}") private val finsaviorHostUrl: String,
+    @Value ("\${spring.mail.username}") private val appEmail: String,
 ) {
 
     fun sendPasswordRecoveryEmail(email: String, token: String) {
         val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setFrom(appEmail)
         message.setTo(email)
         message.setSubject("Redefinição de senha")
         message.setText(buildPasswordRecoveryEmailContent(token), true)
@@ -27,6 +29,7 @@ class EmailService(
 
     fun sendInvoicePaymentFailedEmail(email: String) {
         val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setFrom(appEmail)
         message.setTo(email)
         message.setSubject("Falha no pagamento da assinatura")
         message.setText(buildPaymentFailedEmailContent(), true)
