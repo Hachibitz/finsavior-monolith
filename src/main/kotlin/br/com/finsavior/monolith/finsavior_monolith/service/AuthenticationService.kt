@@ -263,9 +263,9 @@ class AuthenticationService(
         resultBuilder.append(if (request.username.length < 4) "Usuário precisa ter 4 ou mais caracteres. \n" else "")
         resultBuilder.append(if (!containSymbols(request.username)) "Usuário não pode conter símbolos. \n" else "")
         resultBuilder.append(if (request.firstName.length < 2) "Nome precisa ter 2 ou mais caracteres. \n" else "")
-        resultBuilder.append(if (!containSymbols(request.firstName)) "Nome não pode conter símbolos. \n" else "")
+        resultBuilder.append(if (!isValidName(request.firstName)) "Nome não pode conter símbolos. \n" else "")
         resultBuilder.append(if (request.lastName.length < 2) "Sobrenome precisa ter 2 ou mais caracteres. \n" else "")
-        resultBuilder.append(if (!containSymbols(request.lastName)) "Sobrenome não pode conter símbolos. \n" else "")
+        resultBuilder.append(if (!isValidName(request.lastName)) "Sobrenome não pode conter símbolos. \n" else "")
 
         return if (resultBuilder.isNotEmpty()) resultBuilder.toString().trim() else null
     }
@@ -283,5 +283,10 @@ class AuthenticationService(
     private fun containSymbols(username: String): Boolean {
         val regex = "^[a-zA-Z0-9_]+$"
         return username.matches(regex.toRegex())
+    }
+
+    private fun isValidName(name: String): Boolean {
+        val regex = Regex("^[\\p{L} ]+$")
+        return name.matches(regex)
     }
 }
