@@ -1,11 +1,10 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.io.FileSystemResource
+import org.springframework.core.io.ClassPathResource
 import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.mail.javamail.MimeMessageHelper
 import org.springframework.stereotype.Service
-import java.io.File
 
 @Service
 class EmailService(
@@ -21,7 +20,7 @@ class EmailService(
         message.setSubject("Redefinição de senha")
         message.setText(buildPasswordRecoveryEmailContent(token), true)
 
-        val logoFile = FileSystemResource(File("src/main/resources/logo/logo v2 complete.png"))
+        val logoFile = ClassPathResource("logo/logo v2 complete.png")
         message.addInline("logo", logoFile)
 
         mailSender.send(message.mimeMessage)
@@ -34,7 +33,7 @@ class EmailService(
         message.setSubject("Falha no pagamento da assinatura")
         message.setText(buildPaymentFailedEmailContent(), true)
 
-        val logoFile = FileSystemResource(File("src/main/resources/logo/logo v2 complete.png"))
+        val logoFile = ClassPathResource("logo/logo v2 complete.png")
         message.addInline("logo", logoFile)
 
         mailSender.send(message.mimeMessage)
