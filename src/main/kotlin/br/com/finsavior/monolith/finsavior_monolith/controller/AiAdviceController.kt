@@ -39,4 +39,9 @@ class AiAdviceController(
     @ResponseStatus(HttpStatus.OK)
     fun deleteAnalysis(@PathVariable analysisId: Long) =
         service.deleteAnalysis(analysisId)
+
+    @GetMapping("/validate-has-coverage/{analysisId}")
+    @ResponseStatus(HttpStatus.OK)
+    fun validateHasCoverage(@PathVariable analysisId: Int): Boolean =
+        service.validateHasCoverage(analysisId)
 }

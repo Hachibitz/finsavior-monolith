@@ -15,7 +15,6 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.AnalysisHistoryRepository
-import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
@@ -34,7 +33,6 @@ class AiAdviceService(
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AnalysisHistoryRepository,
     private val promptConfig: PromptConfig,
-    private val planRepository: PlanRepository,
     @Lazy private val userService: UserService
 ) {
 
@@ -117,6 +115,24 @@ class AiAdviceService(
         }
     }
 
+    fun validateHasCoverage(analysisTypeId: Int): Boolean {
+        val user: User = userService.getUserByContext()
+
+        val analysisType = getAnalysisTypeById(analysisTypeId) ?:
+        throw AiAdviceException("Tipo de análise não encontrada")
+        val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
+        throw AiAdviceException("Plano não encontrado")
+
+        val hasUsedFreeAnalysis = aiAdviceRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
+
+        return validatePlanAndAnalysisType(
+            user,
+            analysisType,
+            planType,
+            hasUsedFreeAnalysis
+        )
+    }
+
     private fun validatePlanAndAnalysisType(
         user: User,
         analysisType: AnalysisTypeEnum,
@@ -159,19 +175,10 @@ class AiAdviceService(
                 if (annualAiAdvicesOfMonth >= planType.amountOfAnnualAnalysisPerMonth) {
                     return false
                 }
-                if (trimesterAiAdvicesOfMonth >= planType.amountOfTrimesterAnalysisPerMonth) {
-                    return false
-                }
-                if (monthAiAdvicesOfMonth >= planType.amountOfMonthAnalysisPerMonth) {
-                    return false
-                }
             }
 
             AnalysisTypeEnum.TRIMESTER -> {
                 if (trimesterAiAdvicesOfMonth >= planType.amountOfTrimesterAnalysisPerMonth) {
-                    return false
-                }
-                if (monthAiAdvicesOfMonth >= planType.amountOfMonthAnalysisPerMonth) {
                     return false
                 }
             }
