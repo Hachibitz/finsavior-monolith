@@ -30,7 +30,7 @@ class SecurityConfig(
     private val customAuthenticationProvider: CustomAuthenticationProvider,
     private val tokenProvider: TokenProvider,
     private val userSecurityDetails: UserSecurityDetails,
-    @Value("\${allowed_origin}") private val allowedOrigin: String,
+    @Value("\${allowed_origins}") private val allowedOrigins: String,
 ) {
 
     @Autowired
@@ -122,7 +122,9 @@ class SecurityConfig(
     fun corsFilter(): CorsFilter {
         val corsConfiguration = CorsConfiguration()
         corsConfiguration.allowedOrigins = ALLOWED_ORIGINS.apply {
-            add(allowedOrigin)
+            val allowedOriginsFromEnv = allowedOrigins.split(",")
+            allowedOriginsFromEnv.forEach { origin -> add(origin) }
+            println("ORIGENS PERMITIDAS PELO CORS: $allowedOriginsFromEnv")
         }
         corsConfiguration.allowedMethods = listOf(
             HttpMethod.GET.name(),
