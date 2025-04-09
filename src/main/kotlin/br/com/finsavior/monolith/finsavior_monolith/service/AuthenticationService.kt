@@ -12,14 +12,12 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserProfile
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.RoleEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUser
-import br.com.finsavior.monolith.finsavior_monolith.repository.PasswordResetTokenRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.RoleRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.security.TokenProvider
 import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
 import br.com.finsavior.monolith.finsavior_monolith.util.PasswordValidator
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -43,11 +41,10 @@ class AuthenticationService(
     private val planRepository: PlanRepository,
     private val passwordEncoder: PasswordEncoder,
     private val authenticationManager: AuthenticationManager,
-    private val googleAuthService: GoogleAuthService,
     private val tokenProvider: TokenProvider,
     private val emailService: EmailService,
     private val userSecurityDetails: UserSecurityDetails,
-    private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val firebaseAuthService: FirebaseAuthService
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -100,9 +97,10 @@ class AuthenticationService(
         response: HttpServletResponse
     ): ResponseEntity<MutableMap<String, String>> {
         try {
-            val payload: GoogleIdToken.Payload = googleAuthService.validateGoogleToken(idTokenString)
+            val firebaseToken = firebaseAuthService.validateFirebaseToken(idTokenString)
+            val email: String = firebaseToken.email
+                ?: throw IllegalArgumentException("Email não disponível no token.")
 
-            val email: String = payload.email
             val user: User = userRepository.findByEmail(email)
                 ?: throw IllegalArgumentException("Usuário não encontrado.")
 

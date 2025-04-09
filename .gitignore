@@ -41,3 +41,6 @@ out/
 
 ### Zookeeper ###
 zookeeper-data
+
+### Firebase ###
+src/main/resources/firebase/
