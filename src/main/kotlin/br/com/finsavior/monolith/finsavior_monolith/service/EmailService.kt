@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ContactTicket
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.ClassPathResource
 import org.springframework.mail.javamail.JavaMailSender
@@ -37,6 +38,64 @@ class EmailService(
         message.addInline("logo", logoFile)
 
         mailSender.send(message.mimeMessage)
+    }
+
+    fun sendUserContactToApp(ticket: ContactTicket) {
+        val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setFrom(appEmail)
+        message.setTo(appEmail) // remetente e destinatário sendo o mesmo
+        message.setSubject("Contato - ${ticket.type}")
+        message.setText(buildContactMessageForApp(ticket), true)
+
+        mailSender.send(message.mimeMessage)
+    }
+
+    fun sendConfirmationToUser(ticket: ContactTicket) {
+        val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setFrom(appEmail)
+        message.setTo(ticket.email)
+        message.setSubject("Recebemos sua mensagem!")
+        message.setText(buildConfirmationMessageToUser(ticket), true)
+
+        val logoFile = ClassPathResource("logo/logo v2 complete.png")
+        message.addInline("logo", logoFile)
+
+        mailSender.send(message.mimeMessage)
+    }
+
+    private fun buildContactMessageForApp(ticket: ContactTicket): String {
+        return """
+        <html>
+        <body>
+            <h3>Nova mensagem de contato recebida</h3>
+            <p><strong>Tipo:</strong> ${ticket.type}</p>
+            <p><strong>Mensagem:</strong></p>
+            <blockquote>${ticket.message}</blockquote>
+            <hr/>
+            <p><strong>Nome:</strong> ${ticket.name}</p>
+            <p><strong>Email:</strong> ${ticket.email}</p>
+        </body>
+        </html>
+    """.trimIndent()
+    }
+
+    private fun buildConfirmationMessageToUser(ticket: ContactTicket): String {
+        return """
+        <html>
+        <body style="text-align: center;">
+            <img src="cid:logo" alt="Logo" style="width: 150px;"/>
+            <h2>Mensagem Recebida!</h2>
+            <p>Olá, ${ticket.name}.</p>
+            <p>Recebemos sua mensagem do tipo <strong>${ticket.type}</strong>.</p>
+            <p>Se necessário, nos comunicaremos por aqui. Obrigado por entrar em contato!</p>
+            <p><em>Resumo da sua mensagem:</em></p>
+            <blockquote>${ticket.message}</blockquote>
+            <br/>
+            <p>Atenciosamente,</p>
+            <p><strong>Equipe FinSavior</strong></p>
+        </body>
+        </html>
+    """.trimIndent()
     }
 
     private fun buildPaymentFailedEmailContent(): String {
