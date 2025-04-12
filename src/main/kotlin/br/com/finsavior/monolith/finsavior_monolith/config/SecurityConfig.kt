@@ -81,6 +81,7 @@ class SecurityConfig(
                         "/auth/validate-token",
                         "/terms-and-privacy/**",
                         "/stripe/payment/webhook",
+                        "/contact",
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
