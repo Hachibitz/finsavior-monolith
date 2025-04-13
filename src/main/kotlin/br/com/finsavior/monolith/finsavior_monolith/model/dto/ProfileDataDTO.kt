@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.dto
 
 data class ProfileDataDTO (
+    val id: Long? = null,
     val username: String,
     val profilePicture: ByteArray? = null,
     val email: String,
@@ -15,6 +16,7 @@ data class ProfileDataDTO (
 
         other as ProfileDataDTO
 
+        if (id != other.id) return false
         if (username != other.username) return false
         if (!profilePicture.contentEquals(other.profilePicture)) return false
         if (email != other.email) return false
@@ -27,7 +29,8 @@ data class ProfileDataDTO (
     }
 
     override fun hashCode(): Int {
-        var result = username.hashCode()
+        var result = id?.hashCode() ?: 0
+        result = 31 * result + username.hashCode()
         result = 31 * result + (profilePicture?.contentHashCode() ?: 0)
         result = 31 * result + email.hashCode()
         result = 31 * result + plan.hashCode()

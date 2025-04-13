@@ -20,6 +20,7 @@ fun SignUpDTO.toUser(): User =
 
 fun User.toUserProfileDTO(): ProfileDataDTO =
     ProfileDataDTO(
+        id = this.id,
         username = this.username,
         profilePicture = this.userProfile!!.profilePicture,
         email = this.userProfile!!.email,

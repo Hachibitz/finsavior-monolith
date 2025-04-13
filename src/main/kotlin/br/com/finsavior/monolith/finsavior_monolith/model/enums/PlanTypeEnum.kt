@@ -6,15 +6,17 @@ enum class PlanTypeEnum(
     var id: String,
     val amountOfMonthAnalysisPerMonth: Int,
     val amountOfTrimesterAnalysisPerMonth: Int,
-    val amountOfAnnualAnalysisPerMonth: Int
+    val amountOfAnnualAnalysisPerMonth: Int,
+    val amountOfChatMessagesWithSavi: Int,
+    val maxTokensPerMonth: Int
 ) {
-    FREE("1L", 1, 0, 0),
-    STRIPE_BASIC_MONTHLY("UNSET", 3, 1, 0),
-    STRIPE_BASIC_ANNUAL("UNSET", 3, 1, 0),
-    STRIPE_PLUS_MONTHLY("UNSET", 12, 3, 1),
-    STRIPE_PLUS_ANNUAL("UNSET", 12, 3, 1),
-    STRIPE_PREMIUM_ANNUAL("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE),
-    STRIPE_PREMIUM_MONTHLY("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE);
+    FREE("1L", 1, 0, 0, 2, 4000),
+    STRIPE_BASIC_MONTHLY("UNSET", 3, 1, 0, 15, 30000),
+    STRIPE_BASIC_ANNUAL("UNSET", 3, 1, 0, 15, 30000),
+    STRIPE_PLUS_MONTHLY("UNSET", 12, 3, 1, 50, 100000),
+    STRIPE_PLUS_ANNUAL("UNSET", 12, 3, 1, 50, 100000),
+    STRIPE_PREMIUM_ANNUAL("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE),
+    STRIPE_PREMIUM_MONTHLY("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE);
 
     companion object {
         fun fromProductId(value: String): PlanTypeEnum? {

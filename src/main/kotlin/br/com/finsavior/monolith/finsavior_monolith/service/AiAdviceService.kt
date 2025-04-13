@@ -15,6 +15,8 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.AnalysisHistoryRepository
+import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
@@ -191,18 +193,6 @@ class AiAdviceService(
         return true
     }
 
-    private fun getPlanTypeById(planTypeId: String): PlanTypeEnum? =
-        Arrays.stream(PlanTypeEnum.entries.toTypedArray())
-            .filter { planType -> planType.id == planTypeId }
-            .findFirst()
-            .orElse(null)
-
-    private fun getAnalysisTypeById(analysisTypeId: Int?): AnalysisTypeEnum? =
-        Arrays.stream(AnalysisTypeEnum.entries.toTypedArray())
-            .filter { analysis -> analysis.analysisTypeId == analysisTypeId }
-            .findFirst()
-            .orElse(null)
-
     private fun getPrompt(aiAdviceDTO: AiAdviceDTO): String {
         val chosenAnalysis: AnalysisTypeEnum = getChosenAnalysis(aiAdviceDTO)
         val promptParts: List<String> = getPromptByAnalysisType(chosenAnalysis).getPromptParts(promptConfig)
@@ -223,11 +213,6 @@ class AiAdviceService(
             .append(promptParts[3])
 
         return prompt.toString()
-    }
-
-    private fun validateAnalysisTypeAndPlan(chosenAnalysis: AnalysisTypeEnum, user: User): Boolean {
-        return chosenAnalysis.plansCoverageList.stream()
-            .anyMatch { planType -> planType.id == user.userPlan!!.plan.id }
     }
 
     private fun getChosenAnalysis(aiAdvice: AiAdviceDTO): AnalysisTypeEnum {

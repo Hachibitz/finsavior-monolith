@@ -157,7 +157,7 @@ class BillService(
         log.info("Registro único salvo: $register")
     }
 
-    private fun formatBillDate(billDate: String): String {
+    fun formatBillDate(billDate: String): String {
         var billDate = billDate
         if (billDate.length == 7) {
             billDate = billDate.substring(0, 3) + " " + billDate.substring(3, 7)
