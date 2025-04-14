@@ -58,6 +58,7 @@ class BillService(
                 billDescription = billTableDataDTO.billDescription
                 billValue = billTableDataDTO.billValue
                 isPaid = billTableDataDTO.paid
+                billCategory = billTableDataDTO.billCategory
                 audit?.updateDtm = LocalDateTime.now()
                 audit?.updateId = CommonEnum.APP_ID.name
             }

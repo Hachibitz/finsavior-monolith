@@ -41,6 +41,9 @@ class BillTableData (
     @Enumerated(EnumType.STRING)
     var billTable: BillTableEnum,
 
+    @Column(name = "bill_category")
+    var billCategory: String? = null,
+
     @Column(name = "is_paid")
     var isPaid: Boolean,
 
