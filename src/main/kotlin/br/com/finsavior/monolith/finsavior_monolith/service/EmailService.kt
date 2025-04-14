@@ -63,6 +63,39 @@ class EmailService(
         mailSender.send(message.mimeMessage)
     }
 
+    fun sendConfirmationEmail(email: String, token: String) {
+        val message = MimeMessageHelper(mailSender.createMimeMessage(), true)
+        message.setFrom(appEmail)
+        message.setTo(email)
+        message.setSubject("Confirmação de E-mail")
+        message.setText(buildConfirmationEmailContent(token), true)
+
+        mailSender.send(message.mimeMessage)
+    }
+
+    private fun buildConfirmationEmailContent(token: String): String {
+        return """
+            <html>
+            <body style="text-align: center;">
+                <img src="cid:logo" alt="Logo" style="width: 150px;"/>
+                <h2>Confirmação de E-mail</h2>
+                <p>Olá,</p>
+                <p>Obrigado por se registrar no FinSavior! Para ativar sua conta, clique no botão abaixo:</p>
+                <div style="margin: 20px 0;">
+                    <a href="$finsaviorHostUrl/auth/confirm-email?token=$token" 
+                       style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                       Ativar Conta
+                    </a>
+                </div>
+                <p>Se você não realizou este cadastro, por favor ignore este e-mail.</p>
+                <br/>
+                <p>Atenciosamente,</p>
+                <p><strong>Equipe FinSavior</strong></p>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
     private fun buildContactMessageForApp(ticket: ContactTicket): String {
         return """
         <html>

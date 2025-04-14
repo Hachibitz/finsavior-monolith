@@ -69,4 +69,13 @@ class AuthController(private val authenticationService: AuthenticationService) {
     @ResponseStatus(HttpStatus.OK)
     fun resetPassword(@RequestBody resetPasswordDTO: ResetPasswordDTO) =
         authenticationService.resetPassword(resetPasswordDTO.token, resetPasswordDTO.newPassword)
+
+    @PostMapping("/confirm-email")
+    @ResponseStatus(HttpStatus.OK)
+    fun confirmEmail(
+        @RequestParam token: String,
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ) =
+        authenticationService.confirmEmail(token, request, response)
 }

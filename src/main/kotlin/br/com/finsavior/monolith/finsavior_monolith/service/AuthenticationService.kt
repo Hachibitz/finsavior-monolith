@@ -9,6 +9,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserPlan
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserProfile
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.FlagEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.RoleEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUser
@@ -208,7 +209,27 @@ class AuthenticationService(
 
         userInitConfig(savedUser)
 
+        val confirmationToken = tokenProvider.generateToken(
+            UsernamePasswordAuthenticationToken(savedUser.username, null, emptyList())
+        )
+        emailService.sendConfirmationEmail(savedUser.email, confirmationToken)
+
         return ResponseEntity.ok(SignUpResponseDTO("Cadastro realizado com sucesso!"))
+    }
+
+    fun confirmEmail(token: String, request: HttpServletRequest, response: HttpServletResponse): ResponseEntity<Map<String, String>> {
+        val username = tokenProvider.getUsernameFromToken(token)
+        val user = userRepository.findByUsername(username)
+            ?: throw IllegalArgumentException("Usuário não encontrado.")
+
+        if (user.audit?.delFg == FlagEnum.S) {
+            throw IllegalArgumentException("Conta já ativada.")
+        }
+
+        user.audit?.delFg = FlagEnum.S
+        userRepository.save(user)
+
+        return login(LoginRequestDTO(user.username, user.password, true), request, response)
     }
 
     private fun userInitConfig(user: User) {
@@ -224,7 +245,10 @@ class AuthenticationService(
     }
 
     private fun getUserForRegistration(request: SignUpDTO): User =
-        request.toUser().apply { password = passwordEncoder.encode(request.password) }
+        request.toUser().apply {
+            password = passwordEncoder.encode(request.password)
+            audit = Audit(delFg = FlagEnum.N)
+        }
 
     private fun linkFreePlanToUserSignUp(user: User) {
         val plan = planRepository.findById(PlanTypeEnum.FREE.id!!)
@@ -253,6 +277,7 @@ class AuthenticationService(
 
         val resultBuilder = StringBuilder()
 
+        resultBuilder.append(if (request.email != request.emailConfirmation) "Emails não conferem" else "")
         resultBuilder.append(if (userByEmail != null) "Email já cadastrado. \n" else "")
         resultBuilder.append(if (userByUsername != null) "Usuário já cadastrado. \n" else "")
         resultBuilder.append(if (request.password != request.passwordConfirmation) "As senhas não coincidem. \n" else "")

@@ -79,6 +79,7 @@ class SecurityConfig(
                         "/auth/password-recovery",
                         "/auth/reset-password",
                         "/auth/validate-token",
+                        "/auth/confirm-email",
                         "/terms-and-privacy/**",
                         "/stripe/payment/webhook",
                         "/contact",
