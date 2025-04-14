@@ -253,6 +253,7 @@ class AuthenticationService(
 
         val resultBuilder = StringBuilder()
 
+        resultBuilder.append(if (request.email != request.emailConfirmation) "Emails não conferem" else "")
         resultBuilder.append(if (userByEmail != null) "Email já cadastrado. \n" else "")
         resultBuilder.append(if (userByUsername != null) "Usuário já cadastrado. \n" else "")
         resultBuilder.append(if (request.password != request.passwordConfirmation) "As senhas não coincidem. \n" else "")
