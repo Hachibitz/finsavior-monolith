@@ -77,26 +77,30 @@ class PaymentService(
     fun createCheckoutSession(planType: String, email: String): CheckoutSessionDTO {
         val productId = getPlanIdByPlanType(planType)
         val priceId = getPriceIdByProductId(productId)
+        val userId = userService.getUserByContext().id
+        val externalUser = externalUserRepository.findByUserId(userId)
 
-        val session = Session.create(
-            SessionCreateParams.builder()
-                .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setSuccessUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
-                .setCancelUrl("$finsaviorHostUrl/main-page/subscription")
-                .setCustomerEmail(email)
-                .addLineItem(
-                    SessionCreateParams.LineItem.builder()
-                        .setPrice(priceId)
-                        .setQuantity(1L)
-                        .build()
-                )
-                .setSubscriptionData(
-                    SessionCreateParams.SubscriptionData.builder()
-                        .setTrialPeriodDays(7)
-                        .build()
-                )
-                .build()
-        )
+        val sessionBuilder = SessionCreateParams.builder()
+            .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+            .setSuccessUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
+            .setCancelUrl("$finsaviorHostUrl/main-page/subscription")
+            .setCustomerEmail(email)
+            .addLineItem(
+                SessionCreateParams.LineItem.builder()
+                    .setPrice(priceId)
+                    .setQuantity(1L)
+                    .build()
+            )
+
+        if (externalUser?.isTrialUsed != true) {
+            sessionBuilder.setSubscriptionData(
+                SessionCreateParams.SubscriptionData.builder()
+                    .setTrialPeriodDays(7)
+                    .build()
+            )
+        }
+
+        val session = Session.create(sessionBuilder.build())
 
         return CheckoutSessionDTO(url = session.url)
     }

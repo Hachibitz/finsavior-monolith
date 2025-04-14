@@ -54,24 +54,33 @@ class StripeWebhookService(
         runCatching {
             val user: User = userRepository.findById(webhookRequestDTO.userId!!)
                 .orElseThrow { IllegalArgumentException("Usuário não encontrado") }
+            val previousExternalUser = externalUserRepository.findByUserId(user.id)
+            val alreadyUsedTrial = previousExternalUser?.isTrialUsed == true
 
             when (webhookRequestDTO.eventType) {
                 EventTypeEnum.CHECKOUT_SESSION_COMPLETED -> {
-                    userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id!!)
+                    userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id)
 
-                    externalUserRepository.findByUserId(user.id)
-                        ?.let { externalUser -> externalUserRepository.delete(externalUser) }
+                    val subscription = stripeClient.getSubscription(webhookRequestDTO.subscriptionId!!)
+                    val isTrialInThisSession = subscription.trialStart != null
 
-                    externalUserRepository.save(webhookRequestDTO.toExternalUser())
+                    val finalTrialStatus = alreadyUsedTrial || isTrialInThisSession
+
+                    previousExternalUser?.let { externalUserRepository.delete(it) }
+
+                    externalUserRepository.save(
+                        webhookRequestDTO.toExternalUser().apply { this.isTrialUsed = finalTrialStatus }
+                    )
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_DELETED -> {
                     userService.downgradeToFree(webhookRequestDTO.email)
 
-                    externalUserRepository.findByUserId(user.id)
-                        ?.let { externalUser -> externalUserRepository.delete(externalUser) }
+                    previousExternalUser?.let { externalUserRepository.delete(it) }
 
-                    externalUserRepository.save(webhookRequestDTO.toExternalUser())
+                    externalUserRepository.save(
+                        webhookRequestDTO.toExternalUser().apply { this.isTrialUsed = alreadyUsedTrial }
+                    )
                 }
 
                 EventTypeEnum.INVOICE_PAYMENT_FAILED -> {
@@ -86,21 +95,22 @@ class StripeWebhookService(
                     val currentUserPlanId = user.userPlan?.plan?.id
                     val newPlanType = webhookRequestDTO.planType!!.id
 
-                    if(currentUserPlanId == newPlanType) {
+                    if (currentUserPlanId == newPlanType) {
                         log.info("Plano já está atualizado para ${webhookRequestDTO.planType}")
                         return
                     }
 
-                    if(webhookRequestDTO.planType == PlanTypeEnum.FREE) {
+                    if (webhookRequestDTO.planType == PlanTypeEnum.FREE) {
                         userService.downgradeToFree(webhookRequestDTO.email)
                     } else {
                         userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id!!)
                     }
 
-                    externalUserRepository.findByUserId(user.id)
-                        ?.let { externalUser -> externalUserRepository.delete(externalUser) }
+                    previousExternalUser?.let { externalUserRepository.delete(it) }
 
-                    externalUserRepository.save(webhookRequestDTO.toExternalUser())
+                    externalUserRepository.save(
+                        webhookRequestDTO.toExternalUser().apply { this.isTrialUsed = alreadyUsedTrial }
+                    )
                 }
 
                 else -> throw PlanChangeException("Event type not supported: ${webhookRequestDTO.eventType}")

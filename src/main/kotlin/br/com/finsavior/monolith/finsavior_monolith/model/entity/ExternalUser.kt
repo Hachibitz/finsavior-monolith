@@ -20,6 +20,9 @@ data class ExternalUser(
     @Column(name = "subscription_id")
     var subscriptionId: String? = null,
 
+    @Column(name = "is_trial_used")
+    var isTrialUsed: Boolean? = false,
+
     @Column(name = "external_user_id")
     var externalUserId: String? = null,
 
@@ -30,7 +33,7 @@ data class ExternalUser(
     @Enumerated(EnumType.STRING)
     var externalProvider: ExternalProvider,
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", unique = true)
     var userId: Long,
 
     @Embedded
