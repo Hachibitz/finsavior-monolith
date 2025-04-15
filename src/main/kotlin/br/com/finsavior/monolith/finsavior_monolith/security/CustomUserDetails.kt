@@ -8,7 +8,7 @@ import java.util.stream.Collectors
 
 class CustomUserDetails(private val user: User) : UserDetails {
     override fun getAuthorities(): Collection<GrantedAuthority> {
-        return user.roles!!.stream()
+        return user.roles.stream()
             .map { role -> SimpleGrantedAuthority(role.name) }
             .collect(Collectors.toList())
     }

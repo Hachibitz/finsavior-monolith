@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.AuthTokenException
+import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordRecoveryException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
@@ -55,14 +56,12 @@ class AuthenticationService(
     }
 
     fun login(loginRequest: LoginRequestDTO, request: HttpServletRequest, response: HttpServletResponse): ResponseEntity<Map<String, String>> {
-        var user = userRepository.findByUsername(loginRequest.username)
-
-        if (user == null) {
-            throw RuntimeException("Usuário não encontrado")
-        }
+        val user = userRepository.findByUsername(loginRequest.username)
+            ?: userRepository.findByEmail(loginRequest.username)
+            ?: throw LoginException("Usuário ou e-mail não encontrado")
 
         val authentication = authenticationManager.authenticate(
-            UsernamePasswordAuthenticationToken(loginRequest.username, loginRequest.password)
+            UsernamePasswordAuthenticationToken(user.username, loginRequest.password)
         )
 
         SecurityContextHolder.getContext().authentication = authentication
