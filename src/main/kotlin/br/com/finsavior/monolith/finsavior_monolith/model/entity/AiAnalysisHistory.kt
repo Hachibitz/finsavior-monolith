@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
+import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -15,6 +16,8 @@ data class AiAnalysisHistory (
     val userId: Long,
     val analysisTypeId: Int,
     val date: LocalDateTime,
+    @Column(name = "is_free_analysis")
+    val isFreeAnalysis: Boolean? = null,
 
     @Embedded
     var audit: Audit? = null

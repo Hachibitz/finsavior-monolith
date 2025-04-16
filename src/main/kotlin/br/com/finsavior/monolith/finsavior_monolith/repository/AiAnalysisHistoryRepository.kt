@@ -6,11 +6,13 @@ import org.springframework.stereotype.Repository
 import java.time.LocalDateTime
 
 @Repository
-interface AnalysisHistoryRepository : JpaRepository<AiAnalysisHistory, Long> {
+interface AiAnalysisHistoryRepository : JpaRepository<AiAnalysisHistory, Long> {
     fun countByUserIdAndAnalysisTypeIdAndDateBetween(
         userId: Long,
         analysisTypeId: Int,
         startDate: LocalDateTime,
         endDate: LocalDateTime
     ): Int
+
+    fun existsByUserIdAndIsFreeAnalysisTrue(userId: Long): Boolean
 }

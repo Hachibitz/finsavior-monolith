@@ -14,9 +14,9 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PromptEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
-import br.com.finsavior.monolith.finsavior_monolith.repository.AnalysisHistoryRepository
-import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.repository.AiAnalysisHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
 import org.springframework.ai.chat.messages.Message
@@ -33,7 +33,7 @@ import java.util.*
 class AiAdviceService(
     private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
-    private val analysisHistoryRepository: AnalysisHistoryRepository,
+    private val analysisHistoryRepository: AiAnalysisHistoryRepository,
     private val promptConfig: PromptConfig,
     @Lazy private val userService: UserService
 ) {
@@ -51,7 +51,7 @@ class AiAdviceService(
         val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
             throw AiAdviceException("Plano não encontrado")
 
-        val hasUsedFreeAnalysis = aiAdviceRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
+        val hasUsedFreeAnalysis = analysisHistoryRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
         if (!validatePlanAndAnalysisType(user, analysisType, planType, hasUsedFreeAnalysis)) {
             throw AiAdviceException("Consulta excedida pelo plano")
         }
@@ -243,7 +243,6 @@ class AiAdviceService(
                 date = generatedAt,
                 startDate = request.startDate,
                 finishDate = request.finishDate,
-                isFreeAnalysis = isFree,
                 audit = Audit()
             )
         )
@@ -253,6 +252,7 @@ class AiAdviceService(
                 userId = userId,
                 analysisTypeId = request.analysisTypeId,
                 date = generatedAt,
+                isFreeAnalysis = isFree,
                 audit = Audit()
             )
         )

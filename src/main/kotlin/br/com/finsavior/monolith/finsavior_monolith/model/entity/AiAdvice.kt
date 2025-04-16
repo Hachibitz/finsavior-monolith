@@ -38,9 +38,6 @@ data class AiAdvice(
     @Column(name = "temperature")
     val temperature: Float,
 
-    @Column(name = "is_free_analysis")
-    val isFreeAnalysis: Boolean? = null, //adicionando essa coluna
-
     @Embedded
     var audit: Audit? = null
 )
