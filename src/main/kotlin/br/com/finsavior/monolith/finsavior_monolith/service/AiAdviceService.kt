@@ -125,7 +125,7 @@ class AiAdviceService(
         val planType: PlanTypeEnum = getPlanTypeById(user.userPlan!!.plan.id) ?:
         throw AiAdviceException("Plano não encontrado")
 
-        val hasUsedFreeAnalysis = aiAdviceRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
+        val hasUsedFreeAnalysis = analysisHistoryRepository.existsByUserIdAndIsFreeAnalysisTrue(user.id!!)
 
         return validatePlanAndAnalysisType(
             user,
