@@ -3,6 +3,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 import br.com.finsavior.monolith.finsavior_monolith.exception.AuthTokenException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordRecoveryException
+import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpResponseDTO
@@ -101,7 +102,7 @@ class AuthenticationService(
                 ?: throw IllegalArgumentException("Email não disponível no token.")
 
             val user: User = userRepository.findByEmail(email)
-                ?: throw IllegalArgumentException("Usuário não encontrado.")
+                ?: throw UserNotFoundException("Usuário não encontrado.")
 
             val authentication: Authentication = UsernamePasswordAuthenticationToken(
                 user.username, null, userSecurityDetails.loadUserByUsername(user.username).authorities
@@ -123,7 +124,8 @@ class AuthenticationService(
 
             return ResponseEntity.ok<MutableMap<String, String>>(tokens)
         } catch (e: Exception) {
-            throw AuthTokenException(e.message.toString(), HttpStatus.UNAUTHORIZED)
+            if (e is UserNotFoundException) throw e
+            throw LoginException(e.message ?: "Erro ao realizar login com Google.")
         }
     }
 

@@ -20,7 +20,7 @@ data class User(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
     @Column(name="username", unique = true)
-    val username: String,
+    var username: String,
     var password: String,
 
     @Column(name = "first_name")
@@ -53,18 +53,15 @@ data class User(
     var audit: Audit? = null
 ) {
     fun getFirstAndLastName(): String {
-        val completeName = (this.firstName + this.lastName).trim { it <= ' ' }
+        val completeName = "${this.firstName} ${this.lastName}".trim()
 
-        val nameParts: Array<String?> =
-            completeName.split("\\s+".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+        val nameParts = completeName.split("\\s+".toRegex())
 
-        if (nameParts.size < 2) {
-            return completeName
+        return if (nameParts.size < 2) {
+            completeName
+        } else {
+            "${nameParts.first()} ${nameParts.last()}"
         }
-
-        val singleLastName = nameParts[nameParts.size - 1]
-
-        return this.firstName + " " + singleLastName
     }
 
     constructor() : this(

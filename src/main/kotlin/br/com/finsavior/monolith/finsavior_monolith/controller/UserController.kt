@@ -46,11 +46,13 @@ class UserController(
     fun updateProfile(
         @RequestParam(value = "profilePicture", required = false) profilePicture: MultipartFile?,
         @RequestParam(value = "firstName", required = false) firstName: String?,
-        @RequestParam(value = "lastName", required = false) lastName: String?
+        @RequestParam(value = "lastName", required = false) lastName: String?,
+        @RequestParam(value = "username", required = false) username: String?
     ) {
         val updateProfileRequest: UpdateProfileRequestDTO = UpdateProfileRequestDTO(
             firstName,
-            lastName
+            lastName,
+            username
         )
 
         userService.updateProfile(profilePicture, updateProfileRequest)

@@ -117,6 +117,10 @@ class UserService(
                 user.lastName = updateProfileRequest.lastName
             }
 
+            if (updateProfileRequest.username != null) {
+                user.username = updateProfileRequest.username
+            }
+
             user.userProfile!!.name = "${user.firstName} ${user.lastName}"
 
             userRepository.save(user)
