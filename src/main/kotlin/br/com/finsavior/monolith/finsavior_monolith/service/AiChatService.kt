@@ -44,7 +44,7 @@ class AiChatService(
         )
 
         val options = OpenAiChatOptions.builder()
-            .withModel("gpt-3.5-turbo-1106")
+            .withModel("gpt-4o-mini")
             .withUser("FinSaviorApp")
             .withTemperature(0.2f)
             .withMaxTokens(1000)

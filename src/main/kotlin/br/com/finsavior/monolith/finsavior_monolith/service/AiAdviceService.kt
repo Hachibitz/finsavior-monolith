@@ -65,7 +65,7 @@ class AiAdviceService(
         messages.add(UserMessage(request.prompt))
 
         val options = OpenAiChatOptions.builder()
-            .withModel("gpt-3.5-turbo-1106")
+            .withModel("gpt-4o-mini")
             .withUser("FinSaviorApp")
             .withTemperature(
                 if (planType == PlanTypeEnum.FREE) 0.0f
