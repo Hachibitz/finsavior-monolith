@@ -21,7 +21,7 @@ data class ChatMessageHistory(
     val chatMessageId: Long,
 
     @Column(name = "tokens_used")
-    val tokensUsed: Long,
+    val tokensUsed: Int,
 
     @Column(name = "created_at")
     val createdAt: LocalDateTime = LocalDateTime.now()

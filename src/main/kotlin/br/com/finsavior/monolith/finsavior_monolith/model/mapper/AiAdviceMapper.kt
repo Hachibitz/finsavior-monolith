@@ -1,6 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.mapper
 
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
 
 fun AiAdvice.toAiAnalysisDTO(): AiAnalysisDTO =

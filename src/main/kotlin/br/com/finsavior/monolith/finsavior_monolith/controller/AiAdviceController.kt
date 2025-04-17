@@ -1,8 +1,8 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller
 
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAdviceDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAdviceResponseDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.AiAdviceService
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping

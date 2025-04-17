@@ -1,4 +1,4 @@
-package br.com.finsavior.monolith.finsavior_monolith.model.dto
+package br.com.finsavior.monolith.finsavior_monolith.model.dto.ai
 
 import java.time.LocalDateTime
 

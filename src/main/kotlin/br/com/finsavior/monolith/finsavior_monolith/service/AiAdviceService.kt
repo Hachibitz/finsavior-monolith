@@ -2,9 +2,9 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.PromptConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAdviceDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAdviceResponseDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.ai.AiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAnalysisHistory
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
@@ -17,12 +17,6 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepositor
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAnalysisHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
-import org.springframework.ai.chat.ChatClient
-import org.springframework.ai.chat.ChatResponse
-import org.springframework.ai.chat.messages.Message
-import org.springframework.ai.chat.messages.UserMessage
-import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
@@ -31,10 +25,10 @@ import java.util.*
 
 @Service
 class AiAdviceService(
-    private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
     private val promptConfig: PromptConfig,
+    private val ollamaService: OllamaService,
     @Lazy private val userService: UserService
 ) {
 
@@ -61,38 +55,21 @@ class AiAdviceService(
             throw AiAdviceException("O prompt não pode ser nulo ou vazio")
         }
 
-        val messages = mutableListOf<Message>()
-        messages.add(UserMessage(request.prompt))
+        val temperatureChosen = if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature
+        val maxTokensChosen = when (analysisType) {
+            AnalysisTypeEnum.TRIMESTER -> 3000
+            AnalysisTypeEnum.ANNUAL    -> 6000
+            else                       -> 1000
+        }
 
-        val options = OpenAiChatOptions.builder()
-            .withModel("gpt-3.5-turbo-1106")
-            .withUser("FinSaviorApp")
-            .withTemperature(
-                if (planType == PlanTypeEnum.FREE) 0.0f
-                else request.temperature
-            )
-            .withMaxTokens(
-                when (analysisType) {
-                    AnalysisTypeEnum.TRIMESTER -> 3000
-                    AnalysisTypeEnum.ANNUAL -> 6000
-                    else -> 1000
-                }
-            )
-            .build()
-
-        val chatResponse = try {
-            chatClient.call(
-                Prompt(
-                    messages,
-                    options
-                )
-            )
+        val text = try {
+            ollamaService.generate(request.prompt!!, temperatureChosen, maxTokensChosen)
         } catch (e: Exception) {
             throw AiAdviceException("Falha na comunicação com a API de IA", e)
         }
 
         val isFree = planType == PlanTypeEnum.FREE && !hasUsedFreeAnalysis
-        val advice = saveAiAdvice(user.id!!, request, chatResponse, currentDateTime, isFree)
+        val advice = saveAiAdvice(user.id!!, request, text, currentDateTime, isFree)
 
         return AiAdviceResponseDTO(advice.id!!)
     }
@@ -229,7 +206,7 @@ class AiAdviceService(
     private fun saveAiAdvice(
         userId: Long,
         request: AiAdviceDTO,
-        chatResponse: ChatResponse,
+        chatResponse: String,
         generatedAt: LocalDateTime,
         isFree: Boolean
     ): AiAdvice {
@@ -237,7 +214,7 @@ class AiAdviceService(
             AiAdvice(
                 userId = userId,
                 prompt = getPrompt(request),
-                resultMessage = chatResponse.result.output.content,
+                resultMessage = chatResponse,
                 analysisTypeId = request.analysisTypeId,
                 temperature = request.temperature,
                 date = generatedAt,

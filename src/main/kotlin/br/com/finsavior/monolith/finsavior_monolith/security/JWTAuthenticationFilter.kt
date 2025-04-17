@@ -30,8 +30,13 @@ class JWTAuthenticationFilter(
 
     private fun extractTokenFromRequest(request: HttpServletRequest): String? {
         val bearerToken = request.getHeader("Authorization")
-        return if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            bearerToken.substring(7)
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7)
+        }
+
+        val authParam = request.getParameter("auth")
+        return if (!authParam.isNullOrBlank()) {
+            authParam
         } else {
             null
         }
