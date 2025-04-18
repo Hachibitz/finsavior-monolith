@@ -15,6 +15,8 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageReposi
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
@@ -37,11 +39,17 @@ class AiChatService(
     private val chatMessageHistoryRepository: ChatMessageHistoryRepository
 ) {
 
-    fun askQuestion(prompt: String): ChatResponse {
-        val messages = listOf(
-            SystemMessage("Você é um assistente financeiro inteligente."),
-            UserMessage(prompt)
-        )
+    fun askQuestion(userId: Long, prompt: String): ChatResponse {
+        val messages = mutableListOf<Message>()
+
+        val history = getUserChatHistoryDTO(userId, 0, 20)
+        history.forEach { e ->
+            messages += UserMessage(e.userMessage)
+            messages += AssistantMessage(e.assistantResponse)
+        }
+
+        messages.add(SystemMessage("Você é um assistente financeiro inteligente chamada Savi."))
+        messages.add(UserMessage(prompt))
 
         val options = OpenAiChatOptions.builder()
             .withModel("gpt-4o-mini")
@@ -87,7 +95,7 @@ class AiChatService(
             assetsTableData,
             paymentCardTableData
         )
-        val chatResponse = askQuestion(prompt)
+        val chatResponse = askQuestion(userId, prompt)
         val answer = chatResponse.result.output.content
         val totalTokensFromOpenAI = chatResponse.metadata.usage.totalTokens
         val savedMessage = saveChatMessage(user, request, answer, totalTokensFromOpenAI)
@@ -97,10 +105,8 @@ class AiChatService(
     }
 
     fun getUserChatHistory(offset: Int, limit: Int): ResponseEntity<List<ChatMessageDTO>> {
-        val user = userService.getUserByContext()
-        val history = chatMessageRepository
-            .findByUserIdOrderByCreatedAtDesc(user.id!!, PageRequest.of(offset / limit, limit))
-            .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
+        val userId = userService.getUserByContext().id!!
+        val history = getUserChatHistoryDTO(userId, offset, limit)
         return ResponseEntity.ok(history)
     }
 
@@ -110,6 +116,11 @@ class AiChatService(
         chatMessageRepository.deleteByUserId(user.id!!)
         return ResponseEntity.noContent().build()
     }
+
+    private fun getUserChatHistoryDTO(userId: Long, offset: Int, limit: Int) =
+        chatMessageRepository
+            .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(offset / limit, limit))
+            .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
 
     private fun saveChatMessage(user: User, request: AiChatRequest, aiAnswer: String, totalTokensFromOpenAI: Long): ChatMessage {
         val message = ChatMessage(
@@ -207,38 +218,41 @@ class AiChatService(
             • Liquidez: Diferença entre a soma dos ativos e o total de passivos.
         """.trimIndent()
 
-        return """
-        Você é uma assistente financeira pessoal chamada Savi que responde perguntas com base no resumo financeiro do usuário referente a $period.
+        return return """
+        # Papel da Savi
+        Você é a Savi, assistente financeira especialista em análise de dados bancários. Sua personalidade:
+        - Proativa na identificação de riscos
+        - Precisão numérica absoluta
+        - Linguagem simples e acessível
+        - Sugestões práticas e personalizadas
 
-        Use os dados abaixo para responder de forma **objetiva, clara, precisa e amigável**, sempre considerando o que foi perguntado.
-
-        Se a pergunta do usuário solicitar **valores ou recomendações específicas**, você **deve obrigatoriamente sugerir um valor estimado** ou um intervalo numérico, mesmo que com ressalvas. Baseie sua resposta nos dados fornecidos e explique seu raciocínio de forma direta.
-
-        Se for necessário ser cautelosa, ainda assim forneça um valor seguro com base no saldo disponível e nas despesas previstas.
-
-        Caso a pergunta se refira a um mês diferente de $period, informe que você só pode responder com os dados atuais disponíveis.
-        
-        Importante levar em consideração o [HISTÓRICO DO CHAT] para não causar respostas repetitivas.
-        
-        Se a pergunta do usuário for sobre contas do mês atual (Ex.: "Em qual conta eu gastei mais?"), você deve responder depois de analisar os dados disponíveis em [DADOS DETALHADOS].
-
+        # Contexto Atual (${period})
+        ## Situação Financeira: $situation
         $accountGuide
 
-        [Resumo Financeiro de $period]
-        • Situação atual: $situation
-        • Saldo previsto: R$ $foreseen
-        • Saldo total atual: R$ ${summary.totalBalance}
-        • Total de gastos: R$ ${summary.totalExpenses}
-        • Total de despesas não pagas: R$ ${summary.totalUnpaidExpenses}
-        • Gastos no cartão de crédito: R$ ${summary.totalCreditCardExpense}
-        • Total pago no cartão de crédito: R$ ${summary.totalPaidCreditCard}
-        • Gastos por categoria:
+        ## Indicadores Chave:
+        - 💰 Saldo Livre: R$ ${foreseen} (prioridade para sugestões)
+        - 🚨 Passivos Pendentes: R$ ${summary.totalUnpaidExpenses}
+        - 📊 Liquidez: R$ ${summary.totalBalance - summary.totalExpenses}
+
+        # Diretrizes de Resposta
+        - ❗ **Sempre** relacione valores com dados concretos das tabelas
+        - 🔢 Para cálculos, mostre a fórmula mentalmente usada (ex: "Saldo Livre - Gastos Essenciais = R$ X")
+        - 📅 Se mencionar datas futuras, adverte sobre imprevisibilidade
+        - 📉 Para situações negativas: sugere 3 opções de ação
+        - 🔍 Analise padrões históricos quando relevante
+
+        # Estrutura de Resposta Ideal
+        1. Resposta direta à pergunta
+        2. Contexto numérico relevante
+        3. Análise de risco/oportunidade
+        4. Sugestão prática (quando aplicável)
+
+        # Dados Estruturados
+        ## Resumo do Mês
         ${summary.categoryExpenses.entries.joinToString("\n") { "- ${it.key}: R$ ${it.value}" }}
 
-        [RESUMO PARA INVESTIMENTO]
-        Saldo para usar livremente. Ex.: investir, passear, comprar coisas, etc. (saldo previsto, após pagamento de todas as contas): R$ $foreseen
-
-        [DADOS DETALHADOS]
+        ## Tabelas Detalhadas:
         $mainData
 
         $cardData
@@ -247,14 +261,20 @@ class AiChatService(
 
         $cardPayments
 
-        [HISTÓRICO DO CHAT]
+        # Histórico Conversacional (Últimas 10 mensagens)
         $historySection
 
-        [PERGUNTA DO USUÁRIO]
-        $question
+        # Pergunta Atual
+        "   $question"
 
-        [RESPOSTA]
-    """.trimIndent()
+        # Formato da Resposta
+        Use markdown com:
+        - Destaques em negrito para valores
+        - Emojis contextuais
+        - Listas para múltiplas opções
+        - Tabelas quando comparar >3 itens
+        ---
+        Resposta:""".trimIndent()
     }
 
     fun formatTableSection(title: String, rows: List<BillTableDataDTO>): String {

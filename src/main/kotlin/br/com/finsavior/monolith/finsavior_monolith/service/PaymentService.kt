@@ -84,6 +84,7 @@ class PaymentService(
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
             .setSuccessUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
             .setCancelUrl("$finsaviorHostUrl/main-page/subscription")
+            .setReturnUrl("$finsaviorHostUrl/main-page/subscription")
             .setCustomerEmail(email)
             .addLineItem(
                 SessionCreateParams.LineItem.builder()
@@ -135,7 +136,7 @@ class PaymentService(
 
         val planEnum = PlanTypeEnum.valueOf(planType)
         val productId = planEnum.id
-        val prices = stripeClient.getPricesByProduct(productId!!)
+        val prices = stripeClient.getPricesByProduct(productId)
         val newPriceId = prices.data.firstOrNull()?.id
             ?: throw IllegalStateException("Preço não encontrado para o plano $planType")
 
@@ -167,13 +168,13 @@ class PaymentService(
 
     private fun getPlanIdByPlanType(planType: String): String =
         when (planType) {
-            PlanTypeEnum.STRIPE_BASIC_MONTHLY.name -> PlanTypeEnum.STRIPE_BASIC_MONTHLY.id!!
-            PlanTypeEnum.STRIPE_BASIC_ANNUAL.name -> PlanTypeEnum.STRIPE_BASIC_ANNUAL.id!!
-            PlanTypeEnum.STRIPE_PLUS_MONTHLY.name -> PlanTypeEnum.STRIPE_PLUS_MONTHLY.id!!
-            PlanTypeEnum.STRIPE_PLUS_ANNUAL.name -> PlanTypeEnum.STRIPE_PLUS_ANNUAL.id!!
-            PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.name -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id!!
-            PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.name -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id!!
-            else -> PlanTypeEnum.FREE.id!!
+            PlanTypeEnum.STRIPE_BASIC_MONTHLY.name -> PlanTypeEnum.STRIPE_BASIC_MONTHLY.id
+            PlanTypeEnum.STRIPE_BASIC_ANNUAL.name -> PlanTypeEnum.STRIPE_BASIC_ANNUAL.id
+            PlanTypeEnum.STRIPE_PLUS_MONTHLY.name -> PlanTypeEnum.STRIPE_PLUS_MONTHLY.id
+            PlanTypeEnum.STRIPE_PLUS_ANNUAL.name -> PlanTypeEnum.STRIPE_PLUS_ANNUAL.id
+            PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.name -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id
+            PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.name -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id
+            else -> PlanTypeEnum.FREE.id
         }
 
     private fun saveExternalUser(request: SubscriptionDTO, userId: Long) {
