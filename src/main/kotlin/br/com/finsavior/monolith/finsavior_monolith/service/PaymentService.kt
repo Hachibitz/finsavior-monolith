@@ -84,7 +84,6 @@ class PaymentService(
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
             .setSuccessUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
             .setCancelUrl("$finsaviorHostUrl/main-page/subscription")
-            .setReturnUrl("$finsaviorHostUrl/main-page/subscription")
             .setCustomerEmail(email)
             .addLineItem(
                 SessionCreateParams.LineItem.builder()
