@@ -82,8 +82,8 @@ class PaymentService(
 
         val sessionBuilder = SessionCreateParams.builder()
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-            .setSuccessUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
-            .setCancelUrl("$finsaviorHostUrl/main-page/subscription")
+            .setUiMode(SessionCreateParams.UiMode.EMBEDDED)
+            .setReturnUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
             .setCustomerEmail(email)
             .addLineItem(
                 SessionCreateParams.LineItem.builder()
@@ -102,7 +102,7 @@ class PaymentService(
 
         val session = Session.create(sessionBuilder.build())
 
-        return CheckoutSessionDTO(url = session.url)
+        return CheckoutSessionDTO(url = session.url, clientSecret = session.clientSecret)
     }
 
     fun createCustomerPortalSession(email: String): Map<String, String> {
