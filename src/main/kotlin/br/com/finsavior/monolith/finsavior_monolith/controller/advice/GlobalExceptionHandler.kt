@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller.advice
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
 import org.springframework.http.HttpStatus
@@ -18,5 +19,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFoundException::class)
     fun handleUserNotFoundException(ex: UserNotFoundException): ResponseEntity<String> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.message)
+    }
+
+    @ExceptionHandler(AuthenticationException::class)
+    fun handleAuthenticationException(ex: AuthenticationException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.message)
     }
 }

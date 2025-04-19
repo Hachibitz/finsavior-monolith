@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.assync.producer.DeleteAccountProducer
+import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordUpdateException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ProfileChangeException
@@ -234,7 +235,7 @@ class UserService(
         val user: User = getUserByContext()
 
         if (!passwordEncoder.matches(request.password, user.password)) {
-            throw DeleteUserException("Senha incorreta")
+            throw AuthenticationException("Senha incorreta")
         }
 
         val userDelete: UserTransactionManager? = userTransactionManagerRepository.findByUserId(user.id!!)
