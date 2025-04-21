@@ -1,6 +1,5 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
-import br.com.finsavior.monolith.finsavior_monolith.config.PromptConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
@@ -36,7 +35,6 @@ class AiAdviceService(
     private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
-    private val promptConfig: PromptConfig,
     @Lazy private val userService: UserService,
     private val billService: BillService,
     private val financialService: FinancialService,
