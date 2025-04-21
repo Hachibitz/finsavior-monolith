@@ -12,6 +12,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CurrentFinancialSituationEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageRepository
+import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.formatTableSection
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import org.springframework.ai.chat.ChatClient
 import org.springframework.ai.chat.ChatResponse
@@ -297,15 +298,4 @@ class AiChatService(
             Resposta:
         """.trimIndent()
     }
-
-    fun formatTableSection(title: String, rows: List<BillTableDataDTO>): String {
-        if (rows.isEmpty()) return "$title: Nenhum dado encontrado."
-        return buildString {
-            appendLine("$title:")
-            rows.forEach {
-                appendLine("- ${it.billType}: ${it.billDescription} - R$ ${it.billValue} | Pago: ${if (it.paid) "Sim" else "Não"}")
-            }
-        }
-    }
-
 }

@@ -23,7 +23,7 @@ class AiAdviceController(
     @PostMapping("/generate-ai-advice-and-insights")
     @ResponseStatus(HttpStatus.OK)
     fun generateAiAdviceAndInsights(@RequestBody aiAdvice: AiAdviceDTO): AiAdviceResponseDTO =
-        service.generateAiAdviceAndInsights(aiAdvice)
+        service.generateAiAdviceWithAutoPrompt(aiAdvice)
 
     @GetMapping("/get-ai-advice-and-insights")
     @ResponseStatus(HttpStatus.OK)

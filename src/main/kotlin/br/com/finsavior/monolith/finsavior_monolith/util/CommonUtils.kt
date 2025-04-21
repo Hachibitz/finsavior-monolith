@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.util
 
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AnalysisTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import java.util.*
@@ -21,5 +22,15 @@ class CommonUtils {
                 .filter { analysis -> analysis.analysisTypeId == analysisTypeId }
                 .findFirst()
                 .orElse(null)
+
+        fun formatTableSection(title: String, rows: List<BillTableDataDTO>): String {
+            if (rows.isEmpty()) return "$title: Nenhum dado encontrado."
+            return buildString {
+                appendLine("$title:")
+                rows.forEach {
+                    appendLine("- ${it.billType}: ${it.billDescription} - R$ ${it.billValue} | Pago: ${if (it.paid) "Sim" else "Não"}")
+                }
+            }
+        }
     }
 }
