@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller
 
 import br.com.finsavior.monolith.finsavior_monolith.integration.dto.UpdateSubscriptionDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.CancelSubscriptionRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.CheckoutSessionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SubscriptionDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.PaymentService
@@ -30,8 +31,8 @@ class PaymentController(
 
     @PostMapping("/subscription/cancel")
     @ResponseStatus(HttpStatus.OK)
-    fun cancelSubscription(@RequestParam(defaultValue = "false") immediate: Boolean) =
-        paymentService.cancelSubscription(immediate)
+    fun cancelSubscription(@RequestBody request: CancelSubscriptionRequest) =
+        paymentService.cancelSubscription(request.immediate)
 
     @PostMapping("/subscription/update")
     @ResponseStatus(HttpStatus.CREATED)

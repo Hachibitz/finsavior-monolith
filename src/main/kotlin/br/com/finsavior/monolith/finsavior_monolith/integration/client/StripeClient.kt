@@ -30,19 +30,13 @@ interface StripeClient {
 
     @PostMapping("/subscriptions/{subscriptionId}")
     fun cancelAtPeriodEnd(
-        @PathVariable("subscriptionId") subscriptionId: String,
+        @PathVariable subscriptionId: String,
         @RequestParam("cancel_at_period_end") cancelAtPeriodEnd: Boolean = true
-    )
-
-    @PostMapping("/subscriptions/{subscriptionId}")
-    fun cancelSubscriptionImmediately(
-        @PathVariable("subscriptionId") subscriptionId: String,
-        @RequestParam("cancel_at_period_end") cancelAtPeriodEnd: Boolean = false
     )
 
     @DeleteMapping("/subscriptions/{subscriptionId}")
     fun deleteSubscriptionImmediately(
-        @PathVariable("subscriptionId") subscriptionId: String
+        @PathVariable subscriptionId: String
     )
 
     @PostMapping("/subscriptions/{subscriptionId}")

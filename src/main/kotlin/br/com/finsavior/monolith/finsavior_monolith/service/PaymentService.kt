@@ -152,7 +152,7 @@ class PaymentService(
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
 
         if (immediate) {
-            stripeClient.cancelSubscriptionImmediately(subscriptionId)
+            stripeClient.deleteSubscriptionImmediately(subscriptionId)
         } else {
             stripeClient.cancelAtPeriodEnd(subscriptionId, true)
         }

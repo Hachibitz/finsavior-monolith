@@ -9,13 +9,11 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.WebhookRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.sealed.SubscriptionUpdateType
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toExternalUser
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toWebhookRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.service.strategy.WebhookService
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.stripe.net.Webhook
 import mu.KLogger
@@ -103,7 +101,7 @@ class StripeWebhookService(
                     if (webhookRequestDTO.planType == PlanTypeEnum.FREE) {
                         userService.downgradeToFree(webhookRequestDTO.email)
                     } else {
-                        userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id!!)
+                        userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id)
                     }
 
                     previousExternalUser?.let { externalUserRepository.delete(it) }
@@ -150,18 +148,9 @@ class StripeWebhookService(
                     val customerId = subscription["customer"].asText()
                     val email = stripeClient.getCustomer(customerId).email
                     val user = userRepository.findByEmail(email!!) ?: throw IllegalArgumentException("Usuário não encontrado")
-                    val updateType = detectSubscriptionUpdateType(subscription)
+                    val productId = subscription["items"]["data"][0]["price"]["product"].asText()
 
-                    if (updateType is SubscriptionUpdateType.CancelAtPeriodEnd) {
-                        log.info("Cancelamento agendado. Ignorando evento até o cancelamento definitivo.")
-                        return ResponseEntity.ok(null)
-                    }
-
-                    val planType = when (updateType) {
-                        is SubscriptionUpdateType.ChangePlan -> updateType.newPlan
-                        SubscriptionUpdateType.CancelImmediately -> PlanTypeEnum.FREE
-                        SubscriptionUpdateType.CancelAtPeriodEnd -> null
-                    }
+                    val planType = PlanTypeEnum.fromProductId(productId ?: "")
 
                     WebhookRequestDTO(
                         eventType = EventTypeEnum.fromValue(eventType),
@@ -221,23 +210,6 @@ class StripeWebhookService(
         }.getOrElse { e ->
             log.error("Erro ao processar webhook: ${e.message}", e)
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature or processing error")
-        }
-    }
-
-    private fun detectSubscriptionUpdateType(subscriptionNode: JsonNode): SubscriptionUpdateType {
-        val productId = subscriptionNode["items"]["data"][0]["price"]["product"].asText()
-        val planType = PlanTypeEnum.fromProductId(productId)
-
-        val cancelAtPeriodEnd = subscriptionNode["cancel_at_period_end"].asBoolean(false)
-        val canceledAt = subscriptionNode["canceled_at"]?.takeIf { !it.isNull }?.asLong()
-        val cancellationReason = subscriptionNode["cancellation_details"]?.get("reason")?.asText()
-
-        val isImmediateCancel = cancelAtPeriodEnd && canceledAt != null && cancellationReason == "cancellation_requested"
-
-        return when {
-            isImmediateCancel -> SubscriptionUpdateType.CancelImmediately
-            cancelAtPeriodEnd -> SubscriptionUpdateType.CancelAtPeriodEnd
-            else -> SubscriptionUpdateType.ChangePlan(planType!!)
         }
     }
 }
