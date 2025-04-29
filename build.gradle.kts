@@ -18,6 +18,7 @@ java {
 repositories {
 	mavenCentral()
 	maven { url = uri("https://repo.spring.io/snapshot") }
+	maven { url = uri("https://repo.spring.io/milestone") }
 }
 
 extra["springCloudVersion"] = "2024.0.1"
@@ -39,7 +40,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-amqp")
 	implementation("com.github.fridujo:rabbitmq-mock:1.1.1")
-	implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:0.8.1-SNAPSHOT")
+	implementation("dev.langchain4j:langchain4j:1.0.0-beta3")
+	implementation("dev.langchain4j:langchain4j-open-ai:1.0.0-beta3")
 	implementation("org.springframework.boot:spring-boot-starter-actuator:3.4.4")
 	implementation("com.stripe:stripe-java:29.0.0")
 	implementation("org.springframework.cloud:spring-cloud-starter-openfeign")

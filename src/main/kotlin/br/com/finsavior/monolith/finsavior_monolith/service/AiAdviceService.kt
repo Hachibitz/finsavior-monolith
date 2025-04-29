@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
@@ -13,32 +14,44 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toAiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAnalysisHistoryRepository
-import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.formatTableSection
+import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviAssistant
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAccountGuide
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAnalysisTypeGuide
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getMcpToolsDescription
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseGuidelines
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseStructure
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSaviDescription
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
-import org.springframework.ai.chat.ChatClient
-import org.springframework.ai.chat.ChatResponse
-import org.springframework.ai.chat.messages.Message
-import org.springframework.ai.chat.messages.UserMessage
-import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.ai.openai.OpenAiChatOptions
+import dev.langchain4j.data.message.AiMessage
+import dev.langchain4j.data.message.SystemMessage
+import dev.langchain4j.data.message.UserMessage
+import dev.langchain4j.model.chat.ChatLanguageModel
+import dev.langchain4j.model.openai.OpenAiChatModel
+import dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI
+import dev.langchain4j.model.output.Response
+import dev.langchain4j.service.AiServices
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.*
 
 @Service
 class AiAdviceService(
-    private val chatClient: ChatClient,
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
     @Lazy private val userService: UserService,
-    private val billService: BillService,
-    private val financialService: FinancialService,
+    @Value("\${ai.openai.api-key}") private val openAiApiKey: String,
+    private val chatModel: ChatLanguageModel
 ) {
+
+    @Autowired
+    lateinit var mcpToolsConfig: MCPToolsConfig
 
     fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO =
         aiAdviceRepository.findById(aiAdviceId)
@@ -65,12 +78,11 @@ class AiAdviceService(
         val monthStartDate = request.startDate
         val prompt = buildAnalysisPrompt(monthStartDate, analysisType, userId)
 
-        val messages = mutableListOf<Message>(UserMessage(prompt))
-        val options = OpenAiChatOptions.builder()
-            .withModel("gpt-4o-mini")
-            .withUser("FinSaviorApp")
-            .withTemperature(if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature)
-            .withMaxTokens(
+        val chatModel = OpenAiChatModel.builder()
+            .apiKey(openAiApiKey)
+            .modelName(GPT_4_O_MINI)
+            .temperature((if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature).toDouble())
+            .maxTokens(
                 when (analysisType) {
                     AnalysisTypeEnum.TRIMESTER -> 4500
                     AnalysisTypeEnum.ANNUAL -> 9000
@@ -79,8 +91,24 @@ class AiAdviceService(
             )
             .build()
 
+        val aiService = AiServices
+            .builder(SaviAssistant::class.java)
+            .chatLanguageModel(chatModel)
+            .tools(mcpToolsConfig)
+            .build()
+
         val chatResponse = try {
-            chatClient.call(Prompt(messages, options))
+            val systemMessage = SystemMessage.from("""
+                Você é a Savi, assistente financeira. 
+                Use as ferramentas MCP sempre que precisar de dados.
+                NÃO explique que vai usar as ferramentas, apenas use-as silenciosamente.
+                Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
+            """.trimIndent())
+            val messages = listOf(
+                systemMessage,
+                UserMessage.from(prompt)
+            )
+            aiService.chat(messages)
         } catch (e: Exception) {
             throw AiAdviceException("Falha na comunicação com a API de IA", e)
         }
@@ -94,67 +122,41 @@ class AiAdviceService(
     }
 
     fun buildAnalysisPrompt(startingDate: LocalDateTime, analysisType: AnalysisTypeEnum, userId: Long): String {
-        val formatter = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
-        val targetDate = LocalDateTime.now().format(formatter)
-
-        val monthSummaries = mutableListOf<String>()
-        val mainTables = mutableListOf<String>()
-        val cardTables = mutableListOf<String>()
-
-        val months = (0 until analysisType.period).map {
-            startingDate.plusMonths(it.toLong())
-        }
-
-        months.forEach { date ->
-            val mainTable = billService.loadMainTableData(targetDate)
-            val cardTable = billService.loadCardTableData(targetDate)
-            val assetTable = billService.loadAssetsTableData(targetDate)
-            val paymentCardTable = billService.loadPaymentCardTableData(targetDate)
-
-            val summary = financialService.getUserFinancialSummary(userId, targetDate)
-
-            monthSummaries += """
-                ## ${formatter.format(date)}
-                - Situação: ${summary.currentSituation}
-                - Saldo Livre: R$ ${summary.foreseenBalance}
-                - Liquidez: R$ ${summary.totalBalance - summary.totalExpenses}
-                - Gastos Não Pagos: R$ ${summary.totalUnpaidExpenses}
-            """.trimIndent()
-
-            mainTables += formatTableSection("Tabelas principais", mainTable)
-            mainTables += formatTableSection("Ativos", assetTable)
-            cardTables += formatTableSection("Gastos no cartão", cardTable)
-            cardTables += formatTableSection("Pagamentos de fatura", paymentCardTable)
-        }
-
-        val accountGuide = """
-            [GUIA DE CONTAS]
-            • Saldo previsto: Saldo disponível após todas as contas serem pagas.
-            • Saldo total: Saldo total disponível do mês (Caixa + Ativos).
-            • Total de gastos: Somatório das contas do mês (Passivos e cartão).
-            • Total não pago: Somatório do total de contas não pagas.
-            • Total pago de cartão: Somatório dos pagamentos realizados no cartão de crédito.
-            • Status atual: Diferença entre o saldo total e o total pago.
-            • Liquidez: Diferença entre a soma dos ativos e o total de passivos.
-        """.trimIndent()
+        val accountGuide = getAccountGuide()
+        val saviDescription = getSaviDescription()
+        val mcpToolsDescription = getMcpToolsDescription()
+        val fallbackRules = getFallbackRules(userId)
+        val dataSearchingStrategy = getSearchingDataStrategy(userId)
+        val responseGuidelines = getResponseGuidelines()
+        val responseStructure = getResponseStructure()
+        val analysisTypeGuide = getAnalysisTypeGuide()
 
         return """
             # 🎯 Análise Financeira com IA — FinSavior
-            Você é a **Savi**, assistente do app FinSavior. Faça uma análise profunda, estruturada e explicativa baseada nas informações abaixo:
+            
+            $saviDescription 
+            # Por favor, faça uma análise minuciosa do tipo **$analysisType** de minhas finanças a partir de **$startingDate**:
+            
+            $mcpToolsDescription
+            
+            $fallbackRules
+            
+            $dataSearchingStrategy
+            
+            $responseGuidelines
+            
+            $responseStructure
         
-            ## 🔢 Resumo Mensal
-            ${monthSummaries.joinToString("\n\n")}
+            # Guia de tipo de análises:
+            "$analysisTypeGuide"
+            
+            # Guia de contas
+            "$accountGuide"
+            
+            # Id do usuário para uso no MCP Tools
+            "$userId"
         
-            ## 📋 Tabelas de Dados
-            ${mainTables.joinToString("\n\n")}
-        
-            ## 💳 Cartões de Crédito
-            ${cardTables.joinToString("\n\n")}
-        
-            ## ℹ️ Legendas
-            $accountGuide
-        
-            ## 🧠 Objetivo
+            ## 🧠 Objetivo da análise
             Faça uma análise clara e direta das minhas finanças.
             - Estou indo bem?
             - Há algo preocupante?
@@ -271,14 +273,14 @@ class AiAdviceService(
     private fun saveAiAdvice(
         userId: Long,
         request: AiAdviceDTO,
-        chatResponse: ChatResponse,
+        chatResponse: Response<AiMessage>,
         generatedAt: LocalDateTime,
         isFree: Boolean
     ): AiAdvice {
         val aiAdvice = aiAdviceRepository.save(
             AiAdvice(
                 userId = userId,
-                resultMessage = chatResponse.result.output.content,
+                resultMessage = chatResponse.content().text(),
                 analysisTypeId = request.analysisTypeId,
                 temperature = request.temperature,
                 date = generatedAt,
