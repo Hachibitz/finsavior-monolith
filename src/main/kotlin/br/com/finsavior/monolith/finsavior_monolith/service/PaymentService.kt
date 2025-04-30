@@ -83,7 +83,7 @@ class PaymentService(
         val sessionBuilder = SessionCreateParams.builder()
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
             .setUiMode(SessionCreateParams.UiMode.EMBEDDED)
-            .setReturnUrl("$finsaviorHostUrl/main-page/subscription?session_id={CHECKOUT_SESSION_ID}")
+            .setRedirectOnCompletion(SessionCreateParams.RedirectOnCompletion.NEVER)
             .setCustomerEmail(email)
             .addLineItem(
                 SessionCreateParams.LineItem.builder()
