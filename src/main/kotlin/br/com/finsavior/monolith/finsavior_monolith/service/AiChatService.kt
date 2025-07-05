@@ -31,6 +31,7 @@ import dev.langchain4j.model.output.Response
 import dev.langchain4j.service.AiServices
 import mu.KLogger
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
@@ -46,10 +47,10 @@ class AiChatService(
     private val chatModel: ChatLanguageModel,
     private val mcpToolsConfig: MCPToolsConfig,
     private val fsCoinService: FsCoinService,
+    @Value("\${fscoins-cost-for-chat}") private val coinsCostForMessage: Long
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
-    private val coinsCostForMessage = 10L //TODO() mover para config-server
 
     fun askQuestion(prompt: String): Response<AiMessage> {
         log.info("Asking question to Savi Assistant")
