@@ -49,6 +49,7 @@ class AiChatService(
     private val log: KLogger = KotlinLogging.logger {}
 
     fun askQuestion(prompt: String): Response<AiMessage> {
+        log.info("Asking question to Savi Assistant")
         val userId = userService.getUserByContext().id!!
 
         val aiServices = AiServices
@@ -69,6 +70,7 @@ class AiChatService(
 
     @Transactional
     fun chatWithAssistant(request: AiChatRequest): ResponseEntity<AiChatResponse> {
+        log.info("Incoming chat request: ${request.question}")
         val user = userService.getUserByContext()
         val userId = user.id!!
 
@@ -142,12 +144,16 @@ class AiChatService(
     }
 
     private fun validatePlanCoverage(user: User) {
+        log.info("Validating plan coverage for user: ${user.id}")
         if (!validateChatMessagesLimit(user)) {
+            log.error("Chat messages limit exceeded for user: ${user.id}")
             throw ChatbotException("Limite de mensagens atingido.")
         }
         if (!validateChatTokensLimit(user)) {
+            log.error("Chat tokens limit exceeded for user: ${user.id}")
             throw ChatbotException("Limite de tokens atingido.")
         }
+        log.info("User ${user.id} has valid plan coverage for chat request")
     }
 
     private fun validateChatMessagesLimit(
@@ -184,6 +190,7 @@ class AiChatService(
         userId: Long,
         question: String
     ): String {
+        log.info("Building prompt for user: $userId with question: $question")
         val currentDate = LocalDateTime.now()
         val accountGuide = getAccountGuide()
         val saviDescription = getSaviDescription()

@@ -51,6 +51,7 @@ class UserService(
     }
 
     fun getUserByContext(): User {
+        log.info("Fetching user by security context")
         val authentication = SecurityContextHolder.getContext().authentication
         val user: User? = userRepository.findByUsername(authentication.name)
         return user ?: throw RuntimeException("User not found")
