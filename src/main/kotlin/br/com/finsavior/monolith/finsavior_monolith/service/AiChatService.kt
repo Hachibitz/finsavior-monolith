@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
+import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatResponse
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChatMessageDTO
@@ -43,10 +44,12 @@ class AiChatService(
     private val chatMessageRepository: ChatMessageRepository,
     private val chatMessageHistoryRepository: ChatMessageHistoryRepository,
     private val chatModel: ChatLanguageModel,
-    private val mcpToolsConfig: MCPToolsConfig
+    private val mcpToolsConfig: MCPToolsConfig,
+    private val fsCoinService: FsCoinService,
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
+    private val coinsCostForMessage = 10L //TODO() mover para config-server
 
     fun askQuestion(prompt: String): Response<AiMessage> {
         log.info("Asking question to Savi Assistant")
@@ -74,7 +77,13 @@ class AiChatService(
         val user = userService.getUserByContext()
         val userId = user.id!!
 
-        validatePlanCoverage(user)
+        if(request.isUsingCoins != null && request.isUsingCoins) {
+            val fsCoinBalance = fsCoinService.getBalance(user.id)
+            validateUsingCoins(user.id!!, fsCoinBalance)
+            useCoinsForChat(user.id!!, fsCoinBalance)
+        } else {
+            validatePlanCoverage(user)
+        }
 
         val prompt = buildPrompt(userId, request.question)
         val chatResponse = askQuestion(prompt)
@@ -141,6 +150,19 @@ class AiChatService(
             createdAt = LocalDateTime.now()
         )
         chatMessageHistoryRepository.save(history)
+    }
+
+    private fun validateUsingCoins(userId: Long, fsCoinBalance: Long) {
+        log.info("Validating coins usage for user: $userId")
+        if (fsCoinBalance <= 9) {
+            log.error("Insufficient coins for user: $userId")
+            throw InsufficientFsCoinsException("Saldo insuficiente de moedas.")
+        }
+    }
+
+    private fun useCoinsForChat(userId: Long, fsCoinBalance: Long) {
+        fsCoinService.spendCoins(coinsCostForMessage, userId)
+        log.info("Deducted $coinsCostForMessage coins for user: $userId, new balance: $fsCoinBalance-$coinsCostForMessage")
     }
 
     private fun validatePlanCoverage(user: User) {

@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserFsCoinRepository
 import org.springframework.stereotype.Service
@@ -20,19 +21,33 @@ class FsCoinService(
     }
 
     @Transactional(readOnly = true)
-    fun getBalance(): Long {
-        val userId = currentUserId()
-        val record = userFsCoinRepository.findByUserId(userId)
+    fun getBalance(userId: Long? = null): Long {
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
         return record?.balance ?: 0L
     }
 
     @Transactional
-    fun earnCoins(): Long {
-        val userId = currentUserId()
-        val record = userFsCoinRepository.findByUserId(userId)
-            ?: UserFsCoin(userId = userId, balance = 0L)
+    fun earnCoins(userId: Long? = null): Long {
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
+            ?: UserFsCoin(userId = finalUserId, balance = 0L)
         record.balance = record.balance + COINS_PER_AD
-        val saved = userFsCoinRepository.save(record)
+        userFsCoinRepository.save(record)
         return COINS_PER_AD
+    }
+
+    @Transactional
+    fun spendCoins(amount: Long, userId: Long? = null) {
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
+            ?: throw InsufficientFsCoinsException("User does not have any FsCoins")
+
+        if (record.balance < amount) {
+            throw InsufficientFsCoinsException("User does not have any FsCoins")
+        }
+
+        record.balance -= amount
+        userFsCoinRepository.save(record)
     }
 }

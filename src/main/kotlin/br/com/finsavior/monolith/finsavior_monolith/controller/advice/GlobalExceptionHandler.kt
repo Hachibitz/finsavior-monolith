@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.controller.advice
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
+import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
 import org.springframework.http.HttpStatus
@@ -30,5 +31,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ChatbotException::class)
     fun handleChatbotException(ex: ChatbotException): ResponseEntity<String> {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.message)
+    }
+
+    @ExceptionHandler(InsufficientFsCoinsException::class)
+    fun handleInsufficientFsCoinsException(ex: InsufficientFsCoinsException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(ex.message)
     }
 }
