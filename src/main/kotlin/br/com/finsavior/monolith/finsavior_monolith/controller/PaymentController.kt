@@ -6,6 +6,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.CheckoutSessionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SubscriptionDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.PaymentService
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -43,5 +44,10 @@ class PaymentController(
     @ResponseStatus(HttpStatus.OK)
     fun createCustomerPortalSession(@RequestParam email: String): Map<String, String> =
         paymentService.createCustomerPortalSession(email)
+
+    @GetMapping("/subscription/plans")
+    @ResponseStatus(HttpStatus.OK)
+    fun getPlans() =
+        paymentService.getPlans()
 
 }

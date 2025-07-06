@@ -158,6 +158,9 @@ class PaymentService(
         }
     }
 
+    fun getPlans() =
+        stripeClient.listPlans()
+
     private fun getPriceIdByProductId(productId: String): String {
         val prices = stripeClient.getPricesByProduct(productId).data
 
