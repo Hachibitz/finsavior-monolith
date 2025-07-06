@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserFsCoin
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.AnalysisTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserFsCoinRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -11,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional
 class FsCoinService(
     private val userFsCoinRepository: UserFsCoinRepository,
     private val userService: UserService,
-    @Value("\${fscoins-per-ad}") private val coinsPerAd: Long
+    @Value("\${fscoins-per-ad}") private val coinsPerAd: Long,
+    @Value("\${fscoin-cost-for-monthly-analysis}") private val fsCoinCostForMonthlyAnalysis: Long,
+    @Value("\${fscoin-cost-for-trimester-analysis}") private val fsCoinCostForTrimesterAnalysis: Long,
+    @Value("\${fscoin-cost-for-yearly-analysis}") private val fsCoinCostForYearlyAnalysis: Long,
 ) {
 
     private fun currentUserId(): Long {
@@ -47,5 +51,29 @@ class FsCoinService(
 
         record.balance -= amount
         userFsCoinRepository.save(record)
+    }
+
+    fun hasEnoughCoinsForAnalysis(
+        analysisType: AnalysisTypeEnum,
+        userId: Long? = null,
+        coinsCostForAnalysis: Long? = null
+    ): Boolean {
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
+            ?: throw InsufficientFsCoinsException("User does not have any FsCoins")
+
+        val requiredCoins = coinsCostForAnalysis ?: getCoinsCostForAnalysis(analysisType)
+
+        return record.balance >= requiredCoins
+    }
+
+    fun getCoinsCostForAnalysis(
+        analysisType: AnalysisTypeEnum
+    ): Long {
+        return when (analysisType) {
+            AnalysisTypeEnum.MONTH -> fsCoinCostForMonthlyAnalysis
+            AnalysisTypeEnum.TRIMESTER -> fsCoinCostForTrimesterAnalysis
+            AnalysisTypeEnum.ANNUAL -> fsCoinCostForYearlyAnalysis
+        }
     }
 }

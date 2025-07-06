@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
+import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
@@ -28,7 +29,6 @@ import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.g
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
-import dev.langchain4j.model.chat.ChatLanguageModel
 import dev.langchain4j.model.openai.OpenAiChatModel
 import dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI
 import dev.langchain4j.model.output.Response
@@ -47,7 +47,7 @@ class AiAdviceService(
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
     @Lazy private val userService: UserService,
     @Value("\${ai.openai.api-key}") private val openAiApiKey: String,
-    private val chatModel: ChatLanguageModel
+    private val fsCoinService: FsCoinService
 ) {
 
     @Autowired
@@ -71,8 +71,16 @@ class AiAdviceService(
 
         val hasUsedFreeAnalysis = analysisHistoryRepository.existsByUserIdAndIsFreeAnalysisTrue(userId)
 
-        if (!validatePlanAndAnalysisType(user, analysisType, planType, hasUsedFreeAnalysis)) {
-            throw AiAdviceException("Consulta excedida pelo plano")
+        if (request.isUsingCoins) {
+            val coinsCost = fsCoinService.getCoinsCostForAnalysis(analysisType)
+            if (!validateCoinsUsage(user, analysisType, coinsCost)) {
+                throw InsufficientFsCoinsException("Usuário não possui FsCoins suficientes para realizar a análise: ${analysisType.name}")
+            }
+            fsCoinService.spendCoins(coinsCost, userId)
+        } else {
+            if (!validatePlanAndAnalysisType(user, analysisType, planType, hasUsedFreeAnalysis)) {
+                throw AiAdviceException("Consulta excedida pelo plano")
+            }
         }
 
         val monthStartDate = request.startDate
@@ -115,7 +123,7 @@ class AiAdviceService(
 
         val isFree = planType == PlanTypeEnum.FREE && !hasUsedFreeAnalysis
         val advice = saveAiAdvice(
-            userId, request.copy(prompt = prompt), chatResponse, now, isFree
+            userId, request.copy(prompt = prompt), chatResponse, now, isFree, request.isUsingCoins
         )
 
         return AiAdviceResponseDTO(advice.id!!)
@@ -230,19 +238,19 @@ class AiAdviceService(
         val initialDate = currentDate.withDayOfMonth(1)
         val endDate = currentDate.withDayOfMonth(daysOfMonth)
 
-        val annualAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
+        val annualAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetweenAndIsUsingFsCoinsFalse(
             userId,
             AnalysisTypeEnum.ANNUAL.analysisTypeId,
             initialDate,
             endDate
         )
-        val trimesterAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
+        val trimesterAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetweenAndIsUsingFsCoinsFalse(
             userId,
             AnalysisTypeEnum.TRIMESTER.analysisTypeId,
             initialDate,
             endDate
         )
-        val monthAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetween(
+        val monthAiAdvicesOfMonth: Int = analysisHistoryRepository.countByUserIdAndAnalysisTypeIdAndDateBetweenAndIsUsingFsCoinsFalse(
             userId,
             AnalysisTypeEnum.MONTH.analysisTypeId,
             initialDate,
@@ -270,12 +278,20 @@ class AiAdviceService(
         return true
     }
 
+    private fun validateCoinsUsage(
+        user: User,
+        analysisType: AnalysisTypeEnum,
+        coinsCostForAnalysis: Long
+    ) =
+        fsCoinService.hasEnoughCoinsForAnalysis(analysisType, user.id, coinsCostForAnalysis)
+
     private fun saveAiAdvice(
         userId: Long,
         request: AiAdviceDTO,
         chatResponse: Response<AiMessage>,
         generatedAt: LocalDateTime,
-        isFree: Boolean
+        isFree: Boolean,
+        isUsingFsCoins: Boolean,
     ): AiAdvice {
         val aiAdvice = aiAdviceRepository.save(
             AiAdvice(
@@ -286,7 +302,7 @@ class AiAdviceService(
                 date = generatedAt,
                 startDate = request.startDate,
                 finishDate = request.finishDate,
-                audit = Audit()
+                audit = Audit(),
             )
         )
 
@@ -296,7 +312,8 @@ class AiAdviceService(
                 analysisTypeId = request.analysisTypeId,
                 date = generatedAt,
                 isFreeAnalysis = isFree,
-                audit = Audit()
+                audit = Audit(),
+                isUsingFsCoins = isUsingFsCoins
             )
         )
 

@@ -9,5 +9,6 @@ data class AiAdviceDTO(
     val analysisTypeId: Int,
     val temperature: Float,
     val startDate: LocalDateTime,
-    val finishDate: LocalDateTime
+    val finishDate: LocalDateTime,
+    val isUsingCoins: Boolean,
 )

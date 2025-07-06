@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 
 @Repository
 interface AiAnalysisHistoryRepository : JpaRepository<AiAnalysisHistory, Long> {
-    fun countByUserIdAndAnalysisTypeIdAndDateBetween(
+    fun countByUserIdAndAnalysisTypeIdAndDateBetweenAndIsUsingFsCoinsFalse(
         userId: Long,
         analysisTypeId: Int,
         startDate: LocalDateTime,

@@ -18,6 +18,8 @@ data class AiAnalysisHistory (
     val date: LocalDateTime,
     @Column(name = "is_free_analysis")
     val isFreeAnalysis: Boolean? = null,
+    @Column(name = "is_using_fscoins")
+    val isUsingFsCoins: Boolean = false,
 
     @Embedded
     var audit: Audit? = null
