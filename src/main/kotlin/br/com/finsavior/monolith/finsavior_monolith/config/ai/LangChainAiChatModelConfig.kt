@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration
 class LangChainAiChatModelConfig(
-    @Value("\${ai.openai.api-key}") private val openAiApiKey: String
+    @param:Value("\${ai.openai.api-key}") private val openAiApiKey: String
 ) {
 
     @Bean
