@@ -14,5 +14,8 @@ data class BillTableDataDTO (
     var billTable: BillTableEnum,
     var billCategory: String? = null,
     var paid: Boolean,
+    var isInstallment: Boolean? = false,
+    var installmentCount: Int? = null,
+    var currentInstallment: Int? = null,
     var isRecurrent: Boolean? = null,
 )

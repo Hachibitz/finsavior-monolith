@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class BillService(
     private val billTableDataRepository: BillTableDataRepository,
     private val userService: UserService,
-    private val aiAdviceRepository: AiAdviceRepository
+    private val aiAdviceRepository: AiAdviceRepository,
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -125,10 +125,10 @@ class BillService(
     }
 
     private fun saveRegister(request: BillTableDataDTO) {
-        if (request.isRecurrent == true) {
-            saveRecurrentRegister(request)
-        } else {
-            saveSingleRegister(request)
+        when {
+            request.isRecurrent == true -> saveRecurrentRegister(request)
+            request.isInstallment == true -> saveInstallmentRegister(request)
+            else -> saveSingleRegister(request)
         }
     }
 
@@ -150,6 +150,27 @@ class BillService(
             }
     }
 
+    @Transactional
+    private fun saveInstallmentRegister(request: BillTableDataDTO) {
+        val totalInstallments = request.installmentCount ?: 2
+        var currentBillDate = request.billDate
+
+        for (i in 1..totalInstallments) {
+            val register: BillTableData = request.toTableData()
+            register.audit = Audit()
+
+            register.billDate = currentBillDate
+            register.totalInstallments = totalInstallments
+            register.currentInstallment = i
+            register.billDescription = " ${register.billDescription} | Parcela ($i/$totalInstallments)"
+
+            billTableDataRepository.save(register)
+            log.info("Parcela $i/$totalInstallments salva: $register")
+
+            currentBillDate = addOneMonthToDateString(currentBillDate)
+        }
+    }
+
     private fun saveSingleRegister(request: BillTableDataDTO) {
         val register: BillTableData = request.toTableData()
         register.audit = Audit()
@@ -158,10 +179,31 @@ class BillService(
         log.info("Registro único salvo: $register")
     }
 
+    private fun addOneMonthToDateString(dateString: String): String {
+        val parts = dateString.split(" ")
+        val monthStr = parts[0].uppercase(Locale.getDefault())
+        val yearStr = parts[1]
+
+        val monthEnum = MonthEnum.valueOf(monthStr)
+        var monthId = monthEnum.id
+        var yearInt = yearStr.toInt()
+
+        monthId++
+
+        if (monthId > 12) {
+            monthId = 1
+            yearInt++
+        }
+
+        val newMonthEnum = MonthEnum.entries.first { it.id == monthId }
+
+        return "${newMonthEnum.value} $yearInt"
+    }
+
     fun formatBillDate(billDate: String): String {
         var billDate = billDate
         if (billDate.length == 7) {
-            billDate = billDate.substring(0, 3) + " " + billDate.substring(3, 7)
+            billDate = "${billDate.take(3)} ${billDate.substring(3, 7)}"
         }
 
         return billDate

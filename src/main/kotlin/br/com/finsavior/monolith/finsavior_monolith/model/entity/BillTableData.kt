@@ -47,6 +47,15 @@ class BillTableData (
     @Column(name = "is_paid")
     var isPaid: Boolean,
 
+    @Column(name = "total_installments")
+    var totalInstallments: Int? = null,
+
+    @Column(name = "current_installment")
+    var currentInstallment: Int? = null,
+
+    @Column(name = "is_installment")
+    var isInstallment: Boolean? = false,
+
     @Embedded
     var audit: Audit? = null
 )

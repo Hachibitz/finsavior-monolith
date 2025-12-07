@@ -14,6 +14,9 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         billType = this.billType,
         billCategory = this.billCategory,
         isPaid = this.paid,
+        totalInstallments = this.installmentCount,
+        currentInstallment = this.currentInstallment,
+        isInstallment = this.isInstallment,
         billTable = this.billTable,
     )
 
@@ -28,5 +31,8 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         billType = this.billType,
         billCategory = this.billCategory,
         paid = this.isPaid,
+        installmentCount = this.totalInstallments,
+        currentInstallment = this.currentInstallment,
+        isInstallment = this.isInstallment,
         billTable = this.billTable,
     )
