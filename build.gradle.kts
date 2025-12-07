@@ -22,6 +22,15 @@ repositories {
 }
 
 extra["springCloudVersion"] = "2024.0.1"
+val cloudStarterBootstrapVersion = "4.2.1"
+val kotlinLoggingVersion = "2.0.11"
+val jwtVersion = "0.12.1"
+val mySqlConnectorVersion = "9.2.0"
+val swaggerVersion = "2.8.6"
+val rabbitMQMockVersion = "1.1.1"
+val langChain4jVersion = "1.0.0-beta3"
+val stripeJavaVersion = "29.0.0"
+val firebaseAdminVersion = "9.4.3"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -30,22 +39,22 @@ dependencies {
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.springframework.cloud:spring-cloud-starter-config")
-	implementation("org.springframework.cloud:spring-cloud-starter-bootstrap:4.2.1")
-	implementation("io.github.microutils:kotlin-logging:2.0.11")
+	implementation("org.springframework.cloud:spring-cloud-starter-bootstrap:$cloudStarterBootstrapVersion")
+	implementation("io.github.microutils:kotlin-logging:$kotlinLoggingVersion")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
-	implementation("io.jsonwebtoken:jjwt:0.12.1")
-	implementation("com.mysql:mysql-connector-j:9.2.0")
+	implementation("io.jsonwebtoken:jjwt:$jwtVersion")
+	implementation("com.mysql:mysql-connector-j:$mySqlConnectorVersion")
 	implementation("org.springframework.boot:spring-boot-starter-mail")
-	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$swaggerVersion")
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-amqp")
-	implementation("com.github.fridujo:rabbitmq-mock:1.1.1")
-	implementation("dev.langchain4j:langchain4j:1.0.0-beta3")
-	implementation("dev.langchain4j:langchain4j-open-ai:1.0.0-beta3")
-	implementation("org.springframework.boot:spring-boot-starter-actuator:3.4.4")
-	implementation("com.stripe:stripe-java:29.0.0")
+	implementation("com.github.fridujo:rabbitmq-mock:$rabbitMQMockVersion")
+	implementation("dev.langchain4j:langchain4j:$langChain4jVersion")
+	implementation("dev.langchain4j:langchain4j-open-ai:$langChain4jVersion")
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	implementation("com.stripe:stripe-java:$stripeJavaVersion")
 	implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
-	implementation("com.google.firebase:firebase-admin:9.4.3")
+	implementation("com.google.firebase:firebase-admin:$firebaseAdminVersion")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
