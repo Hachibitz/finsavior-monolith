@@ -8,4 +8,10 @@ import java.time.LocalDateTime
 @Repository
 interface AudioProcessingHistoryRepository : JpaRepository<AudioProcessingHistory, Long> {
     fun countByUserIdAndProcessedAtBetween(userId: Long, start: LocalDateTime, end: LocalDateTime): Int
+
+    fun countByUserIdAndProcessedAtBetweenAndPaidWithCoinsFalse(
+        userId: Long,
+        start: LocalDateTime,
+        end: LocalDateTime
+    ): Int
 }

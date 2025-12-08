@@ -26,5 +26,8 @@ data class AudioProcessingHistory(
 
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
-    var status: AudioProcessingStatus = AudioProcessingStatus.PENDING
+    var status: AudioProcessingStatus = AudioProcessingStatus.PENDING,
+
+    @Column(name = "paid_with_coins")
+    var paidWithCoins: Boolean = false
 )

@@ -20,22 +20,31 @@ class AudioProcessingHistoryService(
     private val log: KLogger = KotlinLogging.logger {  }
 
     @Transactional
-    fun reserveAudioUsage(): AudioProcessingHistory {
+    fun reserveAudioUsage(isUsingCoins: Boolean): AudioProcessingHistory {
         val user = userService.getUserByContext()
         val plan = getPlanTypeById(user.userPlan!!.plan.id)
 
         if ((plan?.maxAudioBillEntries ?: 0) > 1000) {
-            val unlimitedHistory = AudioProcessingHistory(userId = user.id!!, status = AudioProcessingStatus.PENDING)
+            val unlimitedHistory = AudioProcessingHistory(
+                userId = user.id!!,
+                status = AudioProcessingStatus.PENDING,
+                paidWithCoins = false
+            )
             return audioProcessingHistoryRepository.save(unlimitedHistory)
         }
 
-        val usageCount = countAudioEntriesCurrentMonth(user.id!!)
-
-        if (usageCount >= plan!!.maxAudioBillEntries) {
-            throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade!")
+        if (!isUsingCoins) {
+            val usageCount = countAudioEntriesCurrentMonthFree(user.id!!)
+            if (usageCount >= plan!!.maxAudioBillEntries) {
+                throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade ou use FSCoins!")
+            }
         }
 
-        val history = AudioProcessingHistory(userId = user.id!!, status = AudioProcessingStatus.PENDING)
+        val history = AudioProcessingHistory(
+            userId = user.id!!,
+            status = AudioProcessingStatus.PENDING,
+            paidWithCoins = isUsingCoins
+        )
         return audioProcessingHistoryRepository.save(history)
     }
 
@@ -46,11 +55,11 @@ class AudioProcessingHistoryService(
         audioProcessingHistoryRepository.save(history)
     }
 
-    private fun countAudioEntriesCurrentMonth(userId: Long): Int {
+    fun countAudioEntriesCurrentMonthFree(userId: Long): Int {
         val now = LocalDateTime.now()
         val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
         val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
 
-        return audioProcessingHistoryRepository.countByUserIdAndProcessedAtBetween(userId, startOfMonth, endOfMonth)
+        return audioProcessingHistoryRepository.countByUserIdAndProcessedAtBetweenAndPaidWithCoinsFalse(userId, startOfMonth, endOfMonth)
     }
 }
