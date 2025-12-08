@@ -6,7 +6,6 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.MonthEnum
@@ -110,19 +109,6 @@ class BillService(
             log.error("Falha ao deletar dados do usuário: ${e.message}")
             throw DeleteUserException(e.message?:"Erro ao deletar dados do usuário")
         }
-    }
-
-    fun countAudioEntriesCurrentMonth(userId: Long): Int {
-        val now = LocalDateTime.now()
-        val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
-        val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
-
-        return billTableDataRepository.countByUserIdAndEntryMethodAndDateRange(
-            userId = userId,
-            entryMethod = BillEntryMethodEnum.AUDIO,
-            startDate = startOfMonth,
-            endDate = endOfMonth
-        )
     }
 
     private fun validateBillTable(billTable: String?): Boolean {

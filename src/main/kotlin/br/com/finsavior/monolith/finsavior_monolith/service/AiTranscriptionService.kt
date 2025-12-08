@@ -1,9 +1,8 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
-import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
-import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.AudioProcessingStatus
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
 import mu.KotlinLogging
@@ -23,7 +22,7 @@ import java.time.format.DateTimeFormatter
 class AiTranscriptionService(
     @param:Value("\${ai.openai.api-key}") private val apiKey: String,
     private val userService: UserService,
-    private val billService: BillService,
+    private val audioProcessingHistoryService: AudioProcessingHistoryService,
 ) {
     companion object {
         const val OPEN_AI_TRANSCRIBE_AUDIO_API_URL = "https://api.openai.com/v1/audio/transcriptions"
@@ -35,20 +34,20 @@ class AiTranscriptionService(
     private val log: KLogger = KotlinLogging.logger {  }
 
     fun processAudioToBill(audioFile: MultipartFile): AiBillExtractionDTO {
-        log.info("M=processAudioToBill, I=Iniciando processamento de áudio para conta.")
-        val transcription = transcribeAudio(audioFile)
-        log.info("M=processAudioToBill, I=Transcrição do áudio realizada com sucesso.")
+        val historyRecord = audioProcessingHistoryService.reserveAudioUsage()
 
         try {
-            validateAudioLimit()
-        } catch (e: Exception) {
-            log.error("M=processAudioToBill, E=Limite do plano atingido.", e)
-            throw WhisperLimitException(e.message ?: "Limite do plano FREE atingido: 2 contas via áudio por mês.", e)
-        }
+            val transcription = transcribeAudio(audioFile)
+            val resultDTO = extractDataFromText(transcription)
 
-        val extractedData = extractDataFromText(transcription)
-        log.info("M=processAudioToBill, I=Extração de dados do texto realizada com sucesso.")
-        return extractedData
+            log.info("M=processAudioToBill, I=Transcrição bem-sucedida.")
+            audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.SUCCESS)
+            return resultDTO
+        } catch (e: Exception) {
+            log.error("M=processAudioToBill, E=Erro ao processar áudio.", e)
+            audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.ERROR)
+            throw e
+        }
     }
 
     private fun transcribeAudio(audioFile: MultipartFile): String {
@@ -108,28 +107,6 @@ class AiTranscriptionService(
             log.error("M=extractDataFromText, E=Erro na interpretação do texto.", e)
             throw RuntimeException("Erro na interpretação: ${e.message}")
         }
-    }
-
-    private fun validateAudioLimit() {
-        log.info("M=validateAudioLimit, I=Iniciando validação de limite de áudio.")
-        val user = userService.getUserByContext()
-        val plan = getPlanTypeById(user.userPlan!!.plan.id)
-
-        plan?.maxAudioBillEntries?.let {
-            if (it > 1000) {
-                log.info("M=validateAudioLimit, I=Usuário com plano de entradas de áudio ilimitadas.")
-                return
-            }
-        }
-
-        val currentMonthEntries = billService.countAudioEntriesCurrentMonth(user.id!!)
-        log.info("M=validateAudioLimit, I=Entradas de áudio no mês atual: $currentMonthEntries.")
-
-        if (currentMonthEntries >= plan!!.maxAudioBillEntries) {
-            log.warn("M=validateAudioLimit, W=Limite do plano atingido para o usuário ${user.id}.")
-            throw RuntimeException("Limite do plano FREE atingido: 2 contas via áudio por mês.")
-        }
-        log.info("M=validateAudioLimit, I=Validação de limite de áudio bem-sucedida.")
     }
 
     private fun getBillFromWhisperPrompt(text: String): String {
