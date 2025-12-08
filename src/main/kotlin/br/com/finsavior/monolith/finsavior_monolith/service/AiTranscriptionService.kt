@@ -76,7 +76,7 @@ class AiTranscriptionService(
 
         val body = LinkedMultiValueMap<String, Any>()
         body.add("file", object : ByteArrayResource(audioFile.bytes) {
-            override fun getFilename(): String = "audio.m4a"
+            override fun getFilename(): String = "audio.mp3"
         })
         body.add("model", "whisper-1")
         body.add("language", "pt")
