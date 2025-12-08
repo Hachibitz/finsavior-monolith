@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
@@ -55,6 +56,10 @@ class BillTableData (
 
     @Column(name = "is_installment")
     var isInstallment: Boolean? = false,
+
+    @Column(name = "entry_method")
+    @Enumerated(EnumType.STRING)
+    var entryMethod: BillEntryMethodEnum = BillEntryMethodEnum.MANUAL,
 
     @Embedded
     var audit: Audit? = null

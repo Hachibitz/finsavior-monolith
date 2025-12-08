@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.dto
 
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import java.math.BigDecimal
 
@@ -17,5 +18,6 @@ data class BillTableDataDTO (
     var isInstallment: Boolean? = false,
     var installmentCount: Int? = null,
     var currentInstallment: Int? = null,
+    var entryMethod: BillEntryMethodEnum = BillEntryMethodEnum.MANUAL,
     var isRecurrent: Boolean? = null,
 )

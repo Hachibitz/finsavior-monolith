@@ -17,6 +17,7 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         totalInstallments = this.installmentCount,
         currentInstallment = this.currentInstallment,
         isInstallment = this.isInstallment,
+        entryMethod = this.entryMethod,
         billTable = this.billTable,
     )
 
@@ -34,5 +35,6 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         installmentCount = this.totalInstallments,
         currentInstallment = this.currentInstallment,
         isInstallment = this.isInstallment,
+        entryMethod = this.entryMethod,
         billTable = this.billTable,
     )

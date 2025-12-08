@@ -5,6 +5,8 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
+import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
+import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ControllerAdvice
@@ -36,5 +38,15 @@ class GlobalExceptionHandler {
     @ExceptionHandler(InsufficientFsCoinsException::class)
     fun handleInsufficientFsCoinsException(ex: InsufficientFsCoinsException): ResponseEntity<String> {
         return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(ex.message)
+    }
+
+    @ExceptionHandler
+    fun handleWhisperApiException(ex: WhisperApiException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.message)
+    }
+
+    @ExceptionHandler
+    fun handleWhisperLimitException(ex: WhisperLimitException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.message)
     }
 }

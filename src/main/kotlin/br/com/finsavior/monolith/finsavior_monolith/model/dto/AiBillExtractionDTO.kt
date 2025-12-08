@@ -10,5 +10,6 @@ data class AiBillExtractionDTO(
     val isInstallment: Boolean? = false,
     val installmentCount: Int? = null,
     val isRecurrent: Boolean? = false,
-    val possibleDate: String? = null
+    val possibleDate: String? = null,
+    val redirectAction: String? = null,
 )
