@@ -19,6 +19,7 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         isInstallment = this.isInstallment,
         entryMethod = this.entryMethod,
         billTable = this.billTable,
+        paymentType = this.paymentType,
     )
 
 fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
@@ -37,4 +38,5 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         isInstallment = this.isInstallment,
         entryMethod = this.entryMethod,
         billTable = this.billTable,
+        paymentType = this.paymentType,
     )

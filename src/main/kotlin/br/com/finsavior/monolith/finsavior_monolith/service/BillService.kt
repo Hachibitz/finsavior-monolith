@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 import java.util.*
-import java.util.concurrent.atomic.AtomicBoolean
 
 @Service
 class BillService(
@@ -37,17 +36,20 @@ class BillService(
             throw IllegalArgumentException("Tabela inválida")
         }
 
-        billRegisterRequestDTO.billDate = formatBillDate(billRegisterRequestDTO.billDate)
-        billRegisterRequestDTO.userId = user.id!!
+        val enrichedRequest = billRegisterRequestDTO.copy(
+            billDate = formatBillDate(billRegisterRequestDTO.billDate),
+            userId = user.id!!
+        )
 
         try {
-            saveRegister(billRegisterRequestDTO)
+            saveRegister(enrichedRequest)
         } catch (e: Exception) {
             log.error("Falha ao salvar o registro: ${e.message}")
             throw BillRegisterException("Erro ao salvar o registro: ${e.message}", e)
         }
     }
 
+    @Transactional
     fun billUpdate(billTableDataDTO: BillTableDataDTO) {
         try {
             val existingRecord = billTableDataRepository.findById(billTableDataDTO.id).orElseThrow {
@@ -112,16 +114,7 @@ class BillService(
     }
 
     private fun validateBillTable(billTable: String?): Boolean {
-        val isError = AtomicBoolean(false)
-        var typeChecker = 0
-        val tableEnum: Array<BillTableEnum> = BillTableEnum.entries.toTypedArray()
-
-        for (tableType in tableEnum) {
-            typeChecker = if (tableType.name == billTable) typeChecker + 1 else typeChecker + 0
-            isError.set(typeChecker == 0)
-        }
-
-        return isError.get()
+        return BillTableEnum.entries.none { it.name == billTable }
     }
 
     private fun saveRegister(request: BillTableDataDTO) {
@@ -201,11 +194,10 @@ class BillService(
     }
 
     fun formatBillDate(billDate: String): String {
-        var billDate = billDate
-        if (billDate.length == 7) {
-            billDate = "${billDate.take(3)} ${billDate.substring(3, 7)}"
+        return if (billDate.length == 7) {
+            "${billDate.take(3)} ${billDate.substring(3, 7)}"
+        } else {
+            billDate
         }
-
-        return billDate
     }
 }

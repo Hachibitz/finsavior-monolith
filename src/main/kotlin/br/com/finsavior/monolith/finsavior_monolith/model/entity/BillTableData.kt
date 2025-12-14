@@ -61,6 +61,9 @@ class BillTableData (
     @Enumerated(EnumType.STRING)
     var entryMethod: BillEntryMethodEnum = BillEntryMethodEnum.MANUAL,
 
+    @Column(name = "payment_type")
+    var paymentType: String? = null,
+
     @Embedded
     var audit: Audit? = null
 )
