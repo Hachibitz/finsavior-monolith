@@ -17,7 +17,9 @@ import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 @Service
@@ -113,6 +115,28 @@ class BillService(
         }
     }
 
+    @Transactional
+    fun batchRegister(requests: List<BillTableDataDTO>) {
+        val user = userService.getUserByContext()
+
+        val entities = requests.map { request ->
+            val enrichedRequest = request.copy(
+                billDate = formatBillDate(request.billDate),
+                userId = user.id!!,
+                billDescription = if (request.isInstallment == true && request.currentInstallment != null)
+                    "${request.billDescription} | Via Importação (${request.currentInstallment}/${request.installmentCount})"
+                else request.billDescription
+            )
+
+            val entity = enrichedRequest.toTableData()
+            entity.audit = Audit()
+            entity
+        }
+
+        billTableDataRepository.saveAll(entities)
+        log.info("Lote de ${entities.size} contas importado com sucesso para o usuário ${user.id}")
+    }
+
     private fun validateBillTable(billTable: String?): Boolean {
         return BillTableEnum.entries.none { it.name == billTable }
     }
@@ -128,7 +152,7 @@ class BillService(
     @Transactional
     private fun saveRecurrentRegister(request: BillTableDataDTO) {
         val requestMonth = request.billDate.split(" ")[0]
-        val requestYear: String? = request.billDate.split(" ")[1]
+        val requestYear: String = request.billDate.split(" ")[1]
         val monthId: Int = MonthEnum.valueOf(requestMonth.uppercase(Locale.getDefault())).id
 
         MonthEnum.entries.stream()
@@ -194,10 +218,39 @@ class BillService(
     }
 
     fun formatBillDate(billDate: String): String {
-        return if (billDate.length == 7) {
-            "${billDate.take(3)} ${billDate.substring(3, 7)}"
-        } else {
-            billDate
+        if (billDate.length == 7 && !billDate.contains(" ") && billDate.contains(Regex("[A-Za-z]"))) {
+            return "${billDate.take(3)} ${billDate.substring(3)}"
         }
+
+        if (billDate.length == 8 && billDate.contains(" ")) {
+            return billDate
+        }
+
+        val datePatterns = listOf(
+            "dd/MM/yyyy",
+            "yyyy-MM-dd",
+            "dd-MM-yyyy",
+            "MM/dd/yyyy"
+        )
+
+        for (pattern in datePatterns) {
+            try {
+                val date = LocalDate.parse(billDate, DateTimeFormatter.ofPattern(pattern))
+                return formatDateToMonthYear(date)
+            } catch (_: Exception) {
+                continue
+            }
+        }
+
+        log.warn("Formato de data não reconhecido: $billDate")
+        return billDate
+    }
+
+    private fun formatDateToMonthYear(date: LocalDate): String {
+        val formattedMonth = date.month.toString()
+            .take(3)
+            .lowercase()
+            .replaceFirstChar(Char::uppercase)
+        return "$formattedMonth ${date.year}"
     }
 }

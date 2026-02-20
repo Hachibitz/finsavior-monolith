@@ -32,6 +32,7 @@ val langChain4jVersion = "1.0.0-beta3"
 val stripeJavaVersion = "29.0.0"
 val firebaseAdminVersion = "9.4.3"
 val wsSchildAudioConverterVersion = "3.5.0"
+val pdfBoxVersion = "2.0.29"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -57,6 +58,7 @@ dependencies {
 	implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
 	implementation("com.google.firebase:firebase-admin:$firebaseAdminVersion")
     implementation("ws.schild:jave-all-deps:$wsSchildAudioConverterVersion")
+    implementation("org.apache.pdfbox:pdfbox:$pdfBoxVersion")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

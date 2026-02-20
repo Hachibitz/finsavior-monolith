@@ -16,6 +16,7 @@ class FsCoinService(
     @param:Value("\${fscoin-cost-for-monthly-analysis}") private val fsCoinCostForMonthlyAnalysis: Long,
     @param:Value("\${fscoin-cost-for-trimester-analysis}") private val fsCoinCostForTrimesterAnalysis: Long,
     @param:Value("\${fscoin-cost-for-yearly-analysis}") private val fsCoinCostForYearlyAnalysis: Long,
+    @param:Value("\${fscoin-cost-for-document-import:10}") private val fsCoinCostForDocumentImport: Long,
 ) {
 
     private fun currentUserId(): Long {
@@ -76,4 +77,13 @@ class FsCoinService(
             AnalysisTypeEnum.ANNUAL -> fsCoinCostForYearlyAnalysis
         }
     }
+
+    fun hasEnoughCoinsForDocumentImport(userId: Long? = null): Boolean {
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
+            ?: return false
+        return record.balance >= fsCoinCostForDocumentImport
+    }
+
+    fun getCoinsCostForDocumentImport(): Long = fsCoinCostForDocumentImport
 }

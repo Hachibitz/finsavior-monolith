@@ -16,12 +16,14 @@ import mu.KotlinLogging
 import org.springframework.context.annotation.Lazy
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Service
 class MCPToolsConfig(
     private val jdbcTemplate: JdbcTemplate,
     private val userService: UserService,
-    @Lazy
+    @param:Lazy
     private val aiChatService: AiChatService,
     private val billService: BillService,
     private val termsAndPrivacyService: TermsAndPrivacyService
@@ -33,12 +35,6 @@ class MCPToolsConfig(
     fun verifyBeanCreation() {
         log.info(">>> MCPToolsConfig BEAN CRIADO com sucesso! <<<")
     }
-
-    @Tool(value = ["Run arbitrary SELECT on FinSavior MySQL"])
-    fun queryDatabase(
-        @P("A full SQL SELECT; e.g. \"SELECT * FROM bill_table_data WHERE user_id=8 AND bill_date='May 2025'\"") sql: String
-    ): List<Map<String, Any>> =
-        jdbcTemplate.queryForList(sql)
 
     @Tool(value = ["Get user profile data (fisrtName, lastName, name, email, plan, id and username)"])
     fun getProfileData(): ProfileDataDTO =
@@ -74,7 +70,7 @@ class MCPToolsConfig(
         return "OK"
     }
 
-    @Tool(value = ["Edit a bill item"])
+    @Tool(value = ["Edit a bill item. ID is mandatory."])
     fun editBillItem(
         @P("request containing the data to update the register in bill_table_data") request: BillTableDataDTO
     ): String {
@@ -139,6 +135,20 @@ class MCPToolsConfig(
                 "tokens" to if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth
             )
         )
+    }
+
+    @Tool("Get the current date and time")
+    fun getCurrentDateTime(): String {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+    }
+
+    @Tool("Register a new bill or expense manually")
+    fun addBillItem(
+        @P("Data for the new bill. Don't provide ID. The field 'billDate' MUST " +
+                "have the following format: 'Mon YYYY' e.g. May 2025") request: BillTableDataDTO
+    ): String {
+        billService.billRegister(request)
+        return "Conta registrada com sucesso."
     }
 
     @Tool(value = ["Get terms of service"])
