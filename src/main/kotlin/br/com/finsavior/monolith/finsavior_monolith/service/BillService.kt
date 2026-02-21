@@ -31,7 +31,7 @@ class BillService(
 
     private val log: KLogger = KotlinLogging.logger {}
 
-    fun billRegister(billRegisterRequestDTO: BillTableDataDTO) {
+    fun billRegister(billRegisterRequestDTO: BillTableDataDTO): Long {
         val user: User = userService.getUserByContext()
 
         if (validateBillTable(billRegisterRequestDTO.billTable.name)) {
@@ -44,7 +44,7 @@ class BillService(
         )
 
         try {
-            saveRegister(enrichedRequest)
+            return saveRegister(enrichedRequest)
         } catch (e: Exception) {
             log.error("Falha ao salvar o registro: ${e.message}")
             throw BillRegisterException("Erro ao salvar o registro: ${e.message}", e)
@@ -141,8 +141,8 @@ class BillService(
         return BillTableEnum.entries.none { it.name == billTable }
     }
 
-    private fun saveRegister(request: BillTableDataDTO) {
-        when {
+    private fun saveRegister(request: BillTableDataDTO): Long {
+        return when {
             request.isRecurrent == true -> saveRecurrentRegister(request)
             request.isInstallment == true -> saveInstallmentRegister(request)
             else -> saveSingleRegister(request)
@@ -150,27 +150,36 @@ class BillService(
     }
 
     @Transactional
-    private fun saveRecurrentRegister(request: BillTableDataDTO) {
+    private fun saveRecurrentRegister(request: BillTableDataDTO): Long {
         val requestMonth = request.billDate.split(" ")[0]
         val requestYear: String = request.billDate.split(" ")[1]
         val monthId: Int = MonthEnum.valueOf(requestMonth.uppercase(Locale.getDefault())).id
 
-        MonthEnum.entries.stream()
-            .filter { month -> month.id >= monthId }
-            .forEach { month ->
-                val register: BillTableData = request.toTableData()
-                register.audit = Audit()
-                register.billDate = "${month.value} $requestYear"
+        var firstId: Long? = null
 
-                billTableDataRepository.save(register)
-                log.info("Registro recorrente salvo: $register")
+        MonthEnum.entries.filter { it.id >= monthId }.forEach { month ->
+            val register: BillTableData = request.toTableData()
+            register.audit = Audit()
+            register.billDate = "${month.value} $requestYear"
+
+            val saved = billTableDataRepository.save(register)
+            // capture id corresponding to the starting month (the one shown in the front)
+            if (firstId == null && month.id == monthId) {
+                firstId = saved.id
             }
+
+            log.info("Registro recorrente salvo: $saved")
+        }
+
+        return firstId ?: throw BillRegisterException("Não foi possível salvar o registro recorrente")
     }
 
     @Transactional
-    private fun saveInstallmentRegister(request: BillTableDataDTO) {
+    private fun saveInstallmentRegister(request: BillTableDataDTO): Long {
         val totalInstallments = request.installmentCount ?: 2
         var currentBillDate = request.billDate
+
+        var firstId: Long? = null
 
         for (i in 1..totalInstallments) {
             val register: BillTableData = request.toTableData()
@@ -181,19 +190,26 @@ class BillService(
             register.currentInstallment = i
             register.billDescription = " ${register.billDescription} | Parcela ($i/$totalInstallments)"
 
-            billTableDataRepository.save(register)
-            log.info("Parcela $i/$totalInstallments salva: $register")
+            val saved = billTableDataRepository.save(register)
+            if (firstId == null) {
+                firstId = saved.id
+            }
+
+            log.info("Parcela $i/$totalInstallments salva: $saved")
 
             currentBillDate = addOneMonthToDateString(currentBillDate)
         }
+
+        return firstId ?: throw BillRegisterException("Não foi possível salvar as parcelas")
     }
 
-    private fun saveSingleRegister(request: BillTableDataDTO) {
+    private fun saveSingleRegister(request: BillTableDataDTO): Long {
         val register: BillTableData = request.toTableData()
         register.audit = Audit()
 
-        billTableDataRepository.save(register)
-        log.info("Registro único salvo: $register")
+        val saved = billTableDataRepository.save(register)
+        log.info("Registro único salvo: $saved")
+        return saved.id ?: throw BillRegisterException("Não foi possível salvar o registro")
     }
 
     private fun addOneMonthToDateString(dateString: String): String {

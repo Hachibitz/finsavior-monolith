@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.IdResponse
 import br.com.finsavior.monolith.finsavior_monolith.service.BillService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -22,8 +23,8 @@ class BillController(
 
     @PostMapping("/bill-register")
     @ResponseStatus(HttpStatus.CREATED)
-    fun billRegister(@Valid @RequestBody billTableDataDTO: BillTableDataDTO) =
-        service.billRegister(billTableDataDTO)
+    fun billRegister(@Valid @RequestBody billTableDataDTO: BillTableDataDTO): IdResponse =
+        IdResponse(service.billRegister(billTableDataDTO))
 
     @GetMapping("/load-main-table-data")
     fun loadMainTableData(@RequestParam billDate: String): List<BillTableDataDTO> =
