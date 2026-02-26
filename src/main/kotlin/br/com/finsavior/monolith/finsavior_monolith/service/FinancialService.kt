@@ -30,15 +30,14 @@ class FinancialService(
         val cardPaymentTotal = paymentCardTableData.sumOf { it.billValue }
         val totalPaid = mainTableData.filter { it.paid }.sumOf { it.billValue } + cardPaymentTotal
         val currentlyAvailableIncome = assetsTableData
-            .filter { it.billType == "Caixa" || it.billType == "Ativo" }
+            .filter { it.billType == "Caixa" || it.billType == "Ativo" || it.billType == "INCOME" }
             .sumOf { it.billValue }
         val totalDebit =
-            mainTableData.filter { it.billType == "Passivo" }.sumOf { it.billValue } +
+            mainTableData.filter { it.billType == "Passivo" || it.billType == "EXPENSE" }.sumOf { it.billValue } +
                     cardTableData.sumOf { it.billValue }
         val totalLeft = totalDebit - totalPaid
         val foreseenBalance = currentlyAvailableIncome - totalDebit
         val totalCreditCardExpense = cardTableData.sumOf { it.billValue }
-        val totalUnpaidExpenses = totalLeft
 
         val categoryExpenses: Map<String, Double> = mainTableData
             .groupBy { it.billType }
@@ -55,7 +54,7 @@ class FinancialService(
             foreseenBalance = foreseenBalance,
             totalBalance = currentlyAvailableIncome,
             totalExpenses = totalDebit,
-            totalUnpaidExpenses = totalUnpaidExpenses,
+            totalUnpaidExpenses = totalLeft,
             totalCreditCardExpense = totalCreditCardExpense,
             totalPaidCreditCard = cardPaymentTotal,
             categoryExpenses = categoryExpenses

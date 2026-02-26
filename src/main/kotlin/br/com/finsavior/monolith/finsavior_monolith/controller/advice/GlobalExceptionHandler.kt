@@ -3,11 +3,28 @@ package br.com.finsavior.monolith.finsavior_monolith.controller.advice
 import br.com.finsavior.monolith.finsavior_monolith.exception.*
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 
 @ControllerAdvice
 class GlobalExceptionHandler {
+
+    @ExceptionHandler(CommunicationException::class)
+    fun handleCommunicationException(ex: CommunicationException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message ?: "Communication error")
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleValidation(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
+        val msg = ex.bindingResult.fieldErrors.joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, msg)
+    }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "Invalid argument")
+    }
 
     @ExceptionHandler(RuntimeException::class)
     fun handleRuntimeException(ex: RuntimeException): ResponseEntity<ErrorResponse> {

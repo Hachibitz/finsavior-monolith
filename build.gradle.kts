@@ -33,6 +33,7 @@ val stripeJavaVersion = "29.0.0"
 val firebaseAdminVersion = "9.4.3"
 val wsSchildAudioConverterVersion = "3.5.0"
 val pdfBoxVersion = "2.0.29"
+val resilience4jVersion = "2.0.0"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -59,10 +60,12 @@ dependencies {
 	implementation("com.google.firebase:firebase-admin:$firebaseAdminVersion")
     implementation("ws.schild:jave-all-deps:$wsSchildAudioConverterVersion")
     implementation("org.apache.pdfbox:pdfbox:$pdfBoxVersion")
+    implementation("io.github.resilience4j:resilience4j-ratelimiter:$resilience4jVersion")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("org.springframework.security:spring-security-test")
+	testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

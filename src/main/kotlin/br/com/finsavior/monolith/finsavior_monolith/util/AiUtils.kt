@@ -11,8 +11,10 @@ class AiUtils {
         fun getAccountGuide(): String = """
             [GUIA DE CONTAS]
             • Passivo: Despesas.
+            • EXPENSE: Despesas.
             • Ativo: Conjunto de receitas (incluindo direitos a receber, por exemplo).
-            • Caixa: Total disponível de imediato.
+            • Caixa: Total disponível de imediato (RECEITAS).
+            • INCOME: Total disponível de imediato (RECEITAS).
             • Saldo previsto: Saldo disponível após todas as contas serem pagas. (Esse é o valor disponível do usuário, o valor que sobra após tudo ser pago)
             • Saldo total: Saldo total disponível do mês (Caixa + Ativos).
             • Total de gastos: Somatório das contas do mês (Passivos e cartão).

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -207,9 +208,9 @@ class BillService(
         val register: BillTableData = request.toTableData()
         register.audit = Audit()
 
-        val saved = billTableDataRepository.save(register)
+        val saved = billTableDataRepository.save(register) ?: throw BillRegisterException("Não foi possível salvar o registro")
         log.info("Registro único salvo: $saved")
-        return saved.id ?: throw BillRegisterException("Não foi possível salvar o registro")
+        return saved.id
     }
 
     private fun addOneMonthToDateString(dateString: String): String {
@@ -234,12 +235,22 @@ class BillService(
     }
 
     fun formatBillDate(billDate: String): String {
-        if (billDate.length == 7 && !billDate.contains(" ") && billDate.contains(Regex("[A-Za-z]"))) {
-            return "${billDate.take(3)} ${billDate.substring(3)}"
+        val input = billDate.trim()
+
+        if (input.length == 7 && !input.contains(" ") && input.contains(Regex("[A-Za-z]"))) {
+            return "${input.take(3)} ${input.substring(3)}"
         }
 
-        if (billDate.length == 8 && billDate.contains(" ")) {
-            return billDate
+        if (input.length == 8 && input.contains(" ")) {
+            return input
+        }
+
+        val yearMonthPatterns = listOf("yyyy-MM")
+        yearMonthPatterns.forEach { pattern ->
+            runCatching {
+                val ym = YearMonth.parse(input, DateTimeFormatter.ofPattern(pattern))
+                return formatDateToMonthYear(ym)
+            }
         }
 
         val datePatterns = listOf(
@@ -249,12 +260,10 @@ class BillService(
             "MM/dd/yyyy"
         )
 
-        for (pattern in datePatterns) {
-            try {
-                val date = LocalDate.parse(billDate, DateTimeFormatter.ofPattern(pattern))
+        datePatterns.forEach { pattern ->
+            runCatching {
+                val date = LocalDate.parse(input, DateTimeFormatter.ofPattern(pattern))
                 return formatDateToMonthYear(date)
-            } catch (_: Exception) {
-                continue
             }
         }
 
@@ -263,10 +272,18 @@ class BillService(
     }
 
     private fun formatDateToMonthYear(date: LocalDate): String {
-        val formattedMonth = date.month.toString()
+        return formatMonthYear(date.month, date.year)
+    }
+
+    private fun formatDateToMonthYear(yearMonth: YearMonth): String {
+        return formatMonthYear(yearMonth.month, yearMonth.year)
+    }
+
+    private fun formatMonthYear(month: java.time.Month, year: Int): String {
+        val formattedMonth = month.toString()
             .take(3)
             .lowercase()
             .replaceFirstChar(Char::uppercase)
-        return "$formattedMonth ${date.year}"
+        return "$formattedMonth $year"
     }
 }

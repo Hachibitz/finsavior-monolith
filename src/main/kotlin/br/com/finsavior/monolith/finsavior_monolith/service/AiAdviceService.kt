@@ -6,6 +6,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.QuickInsightDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAnalysisHistory
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
@@ -33,11 +34,17 @@ import dev.langchain4j.model.openai.OpenAiChatModel
 import dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI
 import dev.langchain4j.model.output.Response
 import dev.langchain4j.service.AiServices
+import mu.KLogger
+import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.cache.Cache
+import org.springframework.cache.CacheManager
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.YearMonth
 
@@ -47,11 +54,17 @@ class AiAdviceService(
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
     @Lazy private val userService: UserService,
     @Value("\${ai.openai.api-key}") private val openAiApiKey: String,
-    private val fsCoinService: FsCoinService
+    private val fsCoinService: FsCoinService,
+    private val financialService: FinancialService,
+    private val cacheManager: CacheManager,
 ) {
 
     @Autowired
     lateinit var mcpToolsConfig: MCPToolsConfig
+
+    private val log: KLogger = KotlinLogging.logger {}
+
+    private data class QuickInsightCacheEntry(val insight: QuickInsightDTO, val baseline: BigDecimal)
 
     fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO =
         aiAdviceRepository.findById(aiAdviceId)
@@ -319,4 +332,147 @@ class AiAdviceService(
 
         return aiAdvice
     }
+
+    fun getQuickInsight(date: String?): QuickInsightDTO {
+        val userId = getContextUserId()
+
+        try {
+            val summary = financialService.getUserFinancialSummary(userId, date)
+            val currentBaseline = summary.foreseenBalance
+
+            val cacheKey = "${'$'}{userId}_$date"
+
+            val cache: Cache? = cacheManager.getCache("quickInsight")
+
+            val cachedEntry = cache?.get(cacheKey, QuickInsightCacheEntry::class.java)
+            if (cachedEntry != null) {
+                if (!hasChangedMoreThanPercent(cachedEntry.baseline, currentBaseline, BigDecimal(10))) {
+                    log.info("quickInsight cache hit for userId=$userId date=$date")
+                    return cachedEntry.insight
+                } else {
+                    log.info("quickInsight cache invalidated for userId=$userId date=$date due to baseline change")
+                }
+            }
+
+            val systemPrompt = getQuickInsightSystemPrompt()
+            val accountGuide = getAccountGuide()
+            val userPrompt = buildQuickInsightPrompt(summary, accountGuide)
+
+            val aiResponse = callAiForQuickInsight(systemPrompt, userPrompt)
+            val result = if (isValidAiInsight(aiResponse)) QuickInsightDTO(aiResponse!!.trim())
+            else QuickInsightDTO(truncateInsight(computeFallbackInsight(summary)))
+
+            refreshQuickInsightCacheForUser(cache, cacheKey, result, currentBaseline, userId, date)
+
+            return result
+
+        } catch (e: Exception) {
+            throw AiAdviceException("Falha ao gerar quick insight: ${e.message}")
+        }
+    }
+
+    fun getContextUserId(): Long = userService.getUserByContext().id!!
+
+    private fun hasChangedMoreThanPercent(previous: BigDecimal, current: BigDecimal, percentThreshold: BigDecimal): Boolean {
+        if (previous.compareTo(BigDecimal.ZERO) == 0) {
+            return current.compareTo(BigDecimal.ZERO) != 0
+        }
+        val diff = current.subtract(previous).abs()
+        val changePercent = diff.divide(previous, 4, RoundingMode.HALF_UP).multiply(BigDecimal(100))
+        return changePercent > percentThreshold
+    }
+
+    private fun refreshQuickInsightCacheForUser(
+        cache: Cache?,
+        cacheKey: String,
+        result: QuickInsightDTO,
+        currentBaseline: BigDecimal,
+        userId: Long,
+        date: String?
+    ) {
+        try {
+            cache?.put(cacheKey, QuickInsightCacheEntry(result, currentBaseline))
+        } catch (e: Exception) {
+            log.warn("Failed to cache quick insight for user=$userId date=$date, but insight generation succeeded. Error ignorado para não impactar usuário. Detalhes: ${e.message}")
+        }
+    }
+
+    private fun getQuickInsightSystemPrompt(): SystemMessage = SystemMessage.from(
+        """
+            Você é o Savi, um assistente financeiro inteligente, motivador e direto. Sua tarefa é analisar os dados financeiros do usuário (receitas, despesas e categorias) para o mês solicitado e gerar um único insight curto e impactante.
+            Regras:
+            - O insight deve ter no máximo 150 caracteres.
+            - Use um tom encorajador e profissional.
+            - Se o usuário economizou bem, elogie e sugira um próximo passo (ex: investir).
+            - Se os gastos estiverem altos, identifique a categoria principal e sugira uma redução.
+            - Responda APENAS com o texto do insight. Não use prefixos como 'Savi diz:' ou 'Insight:'.
+
+            Exemplo de resposta:
+            "Sua taxa de poupança está excelente! Você economizou 35% da sua renda este mês. Que tal investir esse excedente?"
+        """.trimIndent()
+    )
+
+    private fun callAiForQuickInsight(systemPrompt: SystemMessage, prompt: String): String? {
+        val chatModel = OpenAiChatModel.builder()
+            .apiKey(openAiApiKey)
+            .modelName(GPT_4_O_MINI)
+            .temperature(0.2)
+            .maxTokens(100)
+            .build()
+
+        val aiService = AiServices
+            .builder(SaviAssistant::class.java)
+            .chatLanguageModel(chatModel)
+            .tools(mcpToolsConfig)
+            .build()
+
+        val messages = listOf(systemPrompt, UserMessage.from(prompt))
+
+        return try {
+            aiService.chat(messages).content().text()?.replace("\n", " ")?.trim()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isValidAiInsight(insight: String?): Boolean = !insight.isNullOrBlank() && insight.length <= 150
+
+    private fun computeFallbackInsight(summary: br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary): String {
+        val foreseen = summary.foreseenBalance
+        val totalIncome = summary.totalBalance
+        val totalExpenses = summary.totalExpenses
+        val savingsRate = if (totalIncome.compareTo(java.math.BigDecimal.ZERO) == 0) java.math.BigDecimal.ZERO
+        else (foreseen.divide(totalIncome, 2, java.math.RoundingMode.HALF_UP).multiply(java.math.BigDecimal(100)))
+
+        val topCategory = summary.categoryExpenses.maxByOrNull { it.value }?.key ?: "outras despesas"
+
+        return when {
+            savingsRate >= java.math.BigDecimal(20) -> "Sua taxa de poupança está excelente! Considere investir esse excedente."
+            totalExpenses >= totalIncome -> "Atenção: você gastou mais do que ganhou. Reveja gastos em $topCategory."
+            else -> "Fique de olho em $topCategory; reduzir essa categoria pode aumentar sua poupança."
+        }
+    }
+
+    private fun truncateInsight(text: String): String = if (text.length <= 150) text else text.take(147) + "..."
+
+    private fun buildQuickInsightPrompt(summary: br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary, accountGuide: String): String {
+        val foreseen = summary.foreseenBalance
+        val totalIncome = summary.totalBalance
+        val totalExpenses = summary.totalExpenses
+        val topCategory = summary.categoryExpenses.maxByOrNull { it.value }?.key ?: "outras despesas"
+
+        return """
+            Dados do usuário para o mês selecionado:
+            - Saldo previsto: $foreseen
+            - Renda total: $totalIncome
+            - Gastos totais: $totalExpenses
+            - Categoria com maior gasto: $topCategory
+
+            $accountGuide
+
+            Gere um único insight curto (máx 150 caracteres) seguindo as regras solicitadas.
+        """.trimIndent()
+    }
+
+
 }
