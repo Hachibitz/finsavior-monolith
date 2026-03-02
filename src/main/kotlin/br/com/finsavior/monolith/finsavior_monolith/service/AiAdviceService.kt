@@ -6,6 +6,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.QuickInsightDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAdvice
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.AiAnalysisHistory
@@ -437,7 +438,7 @@ class AiAdviceService(
 
     private fun isValidAiInsight(insight: String?): Boolean = !insight.isNullOrBlank() && insight.length <= 150
 
-    private fun computeFallbackInsight(summary: br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary): String {
+    private fun computeFallbackInsight(summary: FinancialSummary): String {
         val foreseen = summary.foreseenBalance
         val totalIncome = summary.totalBalance
         val totalExpenses = summary.totalExpenses
@@ -447,7 +448,7 @@ class AiAdviceService(
         val topCategory = summary.categoryExpenses.maxByOrNull { it.value }?.key ?: "outras despesas"
 
         return when {
-            savingsRate >= java.math.BigDecimal(20) -> "Sua taxa de poupança está excelente! Considere investir esse excedente."
+            savingsRate >= BigDecimal(20) -> "Sua taxa de poupança está excelente! Considere investir esse excedente."
             totalExpenses >= totalIncome -> "Atenção: você gastou mais do que ganhou. Reveja gastos em $topCategory."
             else -> "Fique de olho em $topCategory; reduzir essa categoria pode aumentar sua poupança."
         }
@@ -455,7 +456,7 @@ class AiAdviceService(
 
     private fun truncateInsight(text: String): String = if (text.length <= 150) text else text.take(147) + "..."
 
-    private fun buildQuickInsightPrompt(summary: br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary, accountGuide: String): String {
+    private fun buildQuickInsightPrompt(summary: FinancialSummary, accountGuide: String): String {
         val foreseen = summary.foreseenBalance
         val totalIncome = summary.totalBalance
         val totalExpenses = summary.totalExpenses

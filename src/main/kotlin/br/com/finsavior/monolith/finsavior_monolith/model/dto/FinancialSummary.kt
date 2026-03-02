@@ -11,5 +11,5 @@ data class FinancialSummary(
     val totalUnpaidExpenses: BigDecimal,
     val totalCreditCardExpense: BigDecimal,
     val totalPaidCreditCard: BigDecimal,
-    val categoryExpenses: Map<String, Double>
+    val categoryExpenses: Map<String?, Double>
 )

@@ -39,8 +39,8 @@ class FinancialService(
         val foreseenBalance = currentlyAvailableIncome - totalDebit
         val totalCreditCardExpense = cardTableData.sumOf { it.billValue }
 
-        val categoryExpenses: Map<String, Double> = mainTableData
-            .groupBy { it.billType }
+        val categoryExpenses: Map<String?, Double> = (mainTableData + cardTableData)
+            .groupBy { it.billCategory }
             .mapValues { (_, rows) -> rows.sumOf { it.billValue }.toDouble() }
 
         val situation = when {
