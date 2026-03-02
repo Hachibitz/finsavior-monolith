@@ -25,11 +25,13 @@ class AiDocumentController(
         @RequestParam("file") file: MultipartFile,
         @RequestParam("docType") docType: DocumentTypeEnum,
         @RequestParam(value = "password", required = false) password: String?,
-        @RequestParam(value = "isUsingCoins", required = false, defaultValue = "false") isUsingCoins: Boolean
+        @RequestParam(value = "isUsingCoins", required = false, defaultValue = "false") isUsingCoins: Boolean,
+        @RequestParam(value = "cardId", required = false) cardId: String?,
+        @RequestParam(value = "targetDate", required = false) targetDate: String?
     ): ResponseEntity<List<AiBillExtractionDTO>> {
         val bills = when (isUsingCoins) {
-            true -> aiDocumentService.processDocumentWithCoins(file, docType.name, password)
-            false -> aiDocumentService.processDocument(file, docType.name, password)
+            true -> aiDocumentService.processDocumentWithCoins(file, docType.name, password, cardId, targetDate)
+            false -> aiDocumentService.processDocument(file, docType.name, password, cardId, targetDate)
         }
         return ResponseEntity.ok(bills)
     }

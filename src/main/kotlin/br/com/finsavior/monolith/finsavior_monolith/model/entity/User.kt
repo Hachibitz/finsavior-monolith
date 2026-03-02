@@ -77,4 +77,24 @@ data class User(
         true,
         null
     )
+
+    constructor(
+        username: String,
+        email: String,
+        password: String,
+        firstName: String,
+        lastName: String
+    ) : this(
+        id = null,
+        username = username,
+        password = password,
+        firstName = firstName,
+        lastName = lastName,
+        email = email,
+        userPlan = null,
+        userProfile = null,
+        roles = mutableSetOf(),
+        enabled = true,
+        audit = null
+    )
 }

@@ -20,6 +20,7 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.security.TokenProvider
 import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
 import br.com.finsavior.monolith.finsavior_monolith.util.PasswordValidator
+import com.google.firebase.auth.FirebaseToken
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -66,20 +67,9 @@ class AuthenticationService(
         )
 
         SecurityContextHolder.getContext().authentication = authentication
-        val accessToken = tokenProvider.generateToken(authentication)
-        val refreshToken = tokenProvider.generateRefreshToken(loginRequest.username, loginRequest.rememberMe)
+        val (accessToken, refreshToken) = generateAndSetCookies(authentication, user.username, loginRequest.rememberMe, request, response)
 
-        val tokenCookie = Cookie("accessToken", accessToken)
-        val refreshTokenCookie = Cookie("refreshToken", refreshToken)
-
-        setCookieProperties(
-            tokenCookie, refreshTokenCookie,
-            loginRequest.rememberMe, request.serverName
-        )
-        response.addCookie(tokenCookie)
-        response.addCookie(refreshTokenCookie)
-
-        return ResponseEntity.ok(mapOf("accessToken" to accessToken, "refreshToken" to refreshToken))
+        return ResponseEntity.ok(buildTokenResponse(accessToken, refreshToken))
     }
 
     fun validateLogin(loginRequest: LoginRequestDTO) {
@@ -95,7 +85,7 @@ class AuthenticationService(
         idTokenString: String,
         request: HttpServletRequest,
         response: HttpServletResponse
-    ): ResponseEntity<MutableMap<String, String>> {
+    ): ResponseEntity<Map<String, String>> {
         try {
             val firebaseToken = firebaseAuthService.validateFirebaseToken(idTokenString)
             val email: String = firebaseToken.email
@@ -104,28 +94,43 @@ class AuthenticationService(
             val user: User = userRepository.findByEmail(email)
                 ?: throw UserNotFoundException("Usuário não encontrado.")
 
-            val authentication: Authentication = UsernamePasswordAuthenticationToken(
-                user.username, null, userSecurityDetails.loadUserByUsername(user.username).authorities
-            )
-            SecurityContextHolder.getContext().authentication = authentication
-            val accessToken: String = tokenProvider.generateToken(authentication)
-            val refreshToken: String = tokenProvider.generateRefreshToken(user.username, true)
+            val authentication = authenticateAndSetContext(user.username, null)
+            val (accessToken, refreshToken) = generateAndSetCookies(authentication, user.username, true, request, response)
 
-            val tokenCookie = Cookie("accessToken", accessToken)
-            val refreshTokenCookie = Cookie("refreshToken", refreshToken)
-            setCookieProperties(tokenCookie, refreshTokenCookie, true, request.serverName)
-
-            val tokens: MutableMap<String, String> = HashMap<String, String>()
-            tokens.put("accessToken", accessToken)
-            tokens.put("refreshToken", refreshToken)
-
-            response.addCookie(tokenCookie)
-            response.addCookie(refreshTokenCookie)
-
-            return ResponseEntity.ok<MutableMap<String, String>>(tokens)
+            return ResponseEntity.ok(buildTokenResponse(accessToken, refreshToken))
         } catch (e: Exception) {
             if (e is UserNotFoundException) throw e
             throw LoginException(e.message ?: "Erro ao realizar login com Google.")
+        }
+    }
+
+    @Transactional
+    fun registerWithGoogle(
+        idTokenString: String,
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ): ResponseEntity<Map<String, String>> {
+        try {
+            val firebaseToken = firebaseAuthService.validateFirebaseToken(idTokenString)
+            val email: String = firebaseToken.email
+                ?: throw IllegalArgumentException("Email não disponível no token.")
+
+            var user = userRepository.findByEmail(email)
+
+            if (user == null) {
+                user = createGoogleUser(firebaseToken)
+                val savedUser = userRepository.save(user)
+                userInitConfig(savedUser)
+                log.info("Novo usuário registrado via Google: ${user.email}")
+            }
+
+            val authentication = authenticateAndSetContext(user.username, null)
+            val (accessToken, refreshToken) = generateAndSetCookies(authentication, user.username, true, request, response)
+
+            return ResponseEntity.ok(buildTokenResponse(accessToken, refreshToken))
+        } catch (e: Exception) {
+            log.error("Erro no registro com Google: ${e.message}")
+            throw LoginException(e.message ?: "Erro ao realizar registro com Google.")
         }
     }
 
@@ -228,7 +233,7 @@ class AuthenticationService(
         request.toUser().apply { password = passwordEncoder.encode(request.password) }
 
     private fun linkFreePlanToUserSignUp(user: User) {
-        val plan = planRepository.findById(PlanTypeEnum.FREE.id!!)
+        val plan = planRepository.findById(PlanTypeEnum.FREE.id)
             .orElseThrow { IllegalArgumentException("Plano não encontrado") }
         user.userPlan = UserPlan(
             plan = plan,
@@ -288,5 +293,55 @@ class AuthenticationService(
     private fun isValidName(name: String): Boolean {
         val regex = Regex("^[\\p{L} ]+$")
         return name.matches(regex)
+    }
+
+    private fun authenticateAndSetContext(username: String, credentials: Any?): Authentication {
+        val authentication = UsernamePasswordAuthenticationToken(
+            username, credentials, userSecurityDetails.loadUserByUsername(username).authorities
+        )
+        SecurityContextHolder.getContext().authentication = authentication
+        return authentication
+    }
+
+    private fun generateAndSetCookies(
+        authentication: Authentication,
+        username: String,
+        rememberMe: Boolean,
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ): Pair<String, String> {
+        val accessToken = tokenProvider.generateToken(authentication)
+        val refreshToken = tokenProvider.generateRefreshToken(username, rememberMe)
+
+        val tokenCookie = Cookie("accessToken", accessToken)
+        val refreshTokenCookie = Cookie("refreshToken", refreshToken)
+        setCookieProperties(tokenCookie, refreshTokenCookie, rememberMe, request.serverName)
+
+        response.addCookie(tokenCookie)
+        response.addCookie(refreshTokenCookie)
+
+        return Pair(accessToken, refreshToken)
+    }
+
+    private fun buildTokenResponse(accessToken: String, refreshToken: String): Map<String, String> {
+        return mapOf("accessToken" to accessToken, "refreshToken" to refreshToken)
+    }
+
+    private fun createGoogleUser(firebaseToken: FirebaseToken): User {
+        val email = firebaseToken.email
+        val fullName = firebaseToken.name ?: "Usuário Google"
+        val nameParts = fullName.split(" ")
+        val firstName = nameParts.getOrNull(0) ?: "Usuário"
+        val lastName = if (nameParts.size > 1) nameParts.drop(1).joinToString(" ") else "Google"
+        val baseUsername = email.split("@")[0].filter { it.isLetterOrDigit() }
+        val username = baseUsername + (1000..9999).random()
+
+        return User(
+            username = username,
+            email = email,
+            password = passwordEncoder.encode(java.util.UUID.randomUUID().toString()),
+            firstName = firstName,
+            lastName = lastName
+        )
     }
 }

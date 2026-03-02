@@ -64,6 +64,9 @@ class BillTableData (
     @Column(name = "payment_type")
     var paymentType: String? = null,
 
+    @Column(name = "card_id")
+    var cardId: String? = null,
+
     @Embedded
     var audit: Audit? = null
 )

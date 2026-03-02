@@ -45,7 +45,9 @@ class AiDocumentService(
     fun processDocument(
         file: MultipartFile,
         docType: String,
-        password: String?
+        password: String?,
+        cardId: String? = null,
+        targetDate: String? = null
     ): List<AiBillExtractionDTO> {
         val user = userService.getUserByContext()
         val userId = user.id!!
@@ -54,6 +56,12 @@ class AiDocumentService(
 
         val rawText = extractTextFromPdf(file, password)
         val bills = extractFinancialData(rawText, docType)
+            .map { bill ->
+                bill.copy(
+                    cardId = cardId,
+                    targetDate = targetDate ?: bill.possibleDate
+                )
+            }
 
         recordDocumentProcessing(userId, docType, isUsingCoins = false)
 
@@ -64,7 +72,9 @@ class AiDocumentService(
     fun processDocumentWithCoins(
         file: MultipartFile,
         docType: String,
-        password: String?
+        password: String?,
+        cardId: String? = null,
+        targetDate: String? = null
     ): List<AiBillExtractionDTO> {
         val user = userService.getUserByContext()
         val userId = user.id!!
@@ -78,6 +88,12 @@ class AiDocumentService(
 
         val rawText = extractTextFromPdf(file, password)
         val bills = extractFinancialData(rawText, docType)
+            .map { bill ->
+                bill.copy(
+                    cardId = cardId,
+                    targetDate = targetDate ?: bill.possibleDate
+                )
+            }
 
         recordDocumentProcessing(userId, docType, isUsingCoins = true)
 

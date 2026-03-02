@@ -13,4 +13,6 @@ data class AiBillExtractionDTO(
     val isRecurrent: Boolean? = false,
     val possibleDate: String? = null,
     val redirectAction: String? = null,
+    val cardId: String? = null,
+    val targetDate: String? = null,
 )

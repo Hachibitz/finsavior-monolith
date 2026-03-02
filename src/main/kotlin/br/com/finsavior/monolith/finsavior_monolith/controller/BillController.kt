@@ -31,8 +31,17 @@ class BillController(
         service.loadMainTableData(billDate)
 
     @GetMapping("/load-card-table-data")
-    fun loadCardTableData(@RequestParam billDate: String): List<BillTableDataDTO> =
+    fun loadCardTableData(
+        @RequestParam billDate: String
+    ): List<BillTableDataDTO> =
         service.loadCardTableData(billDate)
+
+    @GetMapping("/load-card-expenses")
+    fun loadCardExpenses(
+        @RequestParam billDate: String,
+        @RequestParam cardId: Long
+    ): List<BillTableDataDTO> =
+        service.loadCardTableDataByCardId(billDate, cardId)
 
     @GetMapping("/load-assets-table-data")
     fun loadAssetsTableData(@RequestParam billDate: String): List<BillTableDataDTO> =

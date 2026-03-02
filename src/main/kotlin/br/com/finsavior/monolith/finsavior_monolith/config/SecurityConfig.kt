@@ -75,6 +75,7 @@ class SecurityConfig(
                         "/auth/refresh-token",
                         "/auth/login-google",
                         "/auth/login-auth",
+                        "/auth/register-google",
                         "/auth/signup",
                         "/auth/password-recovery",
                         "/auth/reset-password",

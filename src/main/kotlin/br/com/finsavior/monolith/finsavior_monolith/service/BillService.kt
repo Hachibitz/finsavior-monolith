@@ -64,6 +64,8 @@ class BillService(
                 billValue = billTableDataDTO.billValue
                 isPaid = billTableDataDTO.paid
                 billCategory = billTableDataDTO.billCategory
+                paymentType = billTableDataDTO.paymentType
+                cardId = billTableDataDTO.cardId
                 audit?.updateDtm = LocalDateTime.now()
                 audit?.updateId = CommonEnum.APP_ID.name
             }
@@ -86,6 +88,14 @@ class BillService(
             userService.getUserByContext().id!!,
             this.formatBillDate(billDate),
             BillTableEnum.CREDIT_CARD
+        ).map { it.toBillTableDataDTO() }
+
+    fun loadCardTableDataByCardId(billDate: String, cardId: Long): List<BillTableDataDTO> =
+        billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
+            userService.getUserByContext().id!!,
+            this.formatBillDate(billDate),
+            BillTableEnum.CREDIT_CARD,
+            cardId.toString()
         ).map { it.toBillTableDataDTO() }
 
     fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> =
@@ -119,8 +129,7 @@ class BillService(
     @Transactional
     fun batchRegister(requests: List<BillTableDataDTO>) {
         val user = userService.getUserByContext()
-
-        val entities = requests.map { request ->
+        requests.forEach { request ->
             val enrichedRequest = request.copy(
                 billDate = formatBillDate(request.billDate),
                 userId = user.id!!,
@@ -128,14 +137,9 @@ class BillService(
                     "${request.billDescription} | Via Importação (${request.currentInstallment}/${request.installmentCount})"
                 else request.billDescription
             )
-
-            val entity = enrichedRequest.toTableData()
-            entity.audit = Audit()
-            entity
+            saveRegister(enrichedRequest)
         }
-
-        billTableDataRepository.saveAll(entities)
-        log.info("Lote de ${entities.size} contas importado com sucesso para o usuário ${user.id}")
+        log.info("Lote de ${requests.size} contas importado com sucesso para o usuário ${user.id}")
     }
 
     private fun validateBillTable(billTable: String?): Boolean {
@@ -177,19 +181,19 @@ class BillService(
 
     @Transactional
     private fun saveInstallmentRegister(request: BillTableDataDTO): Long {
-        val totalInstallments = request.installmentCount ?: 2
+        val totalInstallments = request.installmentCount ?: 1
         var currentBillDate = request.billDate
 
         var firstId: Long? = null
 
-        for (i in 1..totalInstallments) {
+        for (i in (request.currentInstallment ?: 1)..totalInstallments) {
             val register: BillTableData = request.toTableData()
             register.audit = Audit()
 
             register.billDate = currentBillDate
             register.totalInstallments = totalInstallments
             register.currentInstallment = i
-            register.billDescription = " ${register.billDescription} | Parcela ($i/$totalInstallments)"
+            register.billDescription = " ${request.billDescription} | Parcela ($i/$totalInstallments)"
 
             val saved = billTableDataRepository.save(register)
             if (firstId == null) {

@@ -20,6 +20,7 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         entryMethod = this.entryMethod,
         billTable = this.billTable,
         paymentType = this.paymentType,
+        cardId = this.cardId,
     )
 
 fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
@@ -39,4 +40,5 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         entryMethod = this.entryMethod,
         billTable = this.billTable,
         paymentType = this.paymentType,
+        cardId = this.cardId,
     )

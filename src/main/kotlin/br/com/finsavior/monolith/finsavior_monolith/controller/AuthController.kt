@@ -47,8 +47,17 @@ class AuthController(private val authenticationService: AuthenticationService) {
         @RequestBody idTokenString: String,
         request: HttpServletRequest,
         response: HttpServletResponse
-    ): ResponseEntity<MutableMap<String, String>> {
+    ): ResponseEntity<Map<String, String>> {
         return authenticationService.loginWithGoogle(idTokenString, request, response)
+    }
+
+    @PostMapping("/register-google")
+    fun signUpWithGoogle(
+        @RequestBody idTokenString: String,
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ): ResponseEntity<Map<String, String>> {
+        return authenticationService.registerWithGoogle(idTokenString, request, response)
     }
 
     @GetMapping("/validate-token")

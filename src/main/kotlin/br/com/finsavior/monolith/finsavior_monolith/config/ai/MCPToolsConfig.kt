@@ -1,11 +1,13 @@
 package br.com.finsavior.monolith.finsavior_monolith.config.ai
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.CardDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChatMessageDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ProfileDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.service.AiChatService
 import br.com.finsavior.monolith.finsavior_monolith.service.BillService
+import br.com.finsavior.monolith.finsavior_monolith.service.CardService
 import br.com.finsavior.monolith.finsavior_monolith.service.TermsAndPrivacyService
 import br.com.finsavior.monolith.finsavior_monolith.service.UserService
 import dev.langchain4j.agent.tool.P
@@ -26,6 +28,7 @@ class MCPToolsConfig(
     @param:Lazy
     private val aiChatService: AiChatService,
     private val billService: BillService,
+    private val cardService: CardService,
     private val termsAndPrivacyService: TermsAndPrivacyService
 ) {
 
@@ -46,11 +49,22 @@ class MCPToolsConfig(
     ): List<BillTableDataDTO> =
         billService.loadMainTableData(billDate)
 
+    @Tool(value = ["Load card IDs and names for the authenticated user"])
+    fun loadUserCards(): List<CardDTO> =
+        cardService.listUserCards()
+
     @Tool(value = ["Load credit‐card expenses for a given month"])
     fun loadCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
     ): List<BillTableDataDTO> =
         billService.loadCardTableData(billDate)
+
+    @Tool(value = ["Load credit‐card expenses for a given month by cardId"])
+    fun loadCardExpensesByCardId(
+        @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String,
+        @P("The ID of the credit card") cardId: Long
+    ): List<BillTableDataDTO> =
+        billService.loadCardTableDataByCardId(billDate, cardId)
 
     @Tool(value = ["Load assets (salary, bonuses, etc) for a given month"])
     fun loadAssetsTableData(

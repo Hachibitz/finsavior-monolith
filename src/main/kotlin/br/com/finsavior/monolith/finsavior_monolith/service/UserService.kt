@@ -1,7 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.assync.producer.DeleteAccountProducer
-import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordUpdateException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ProfileChangeException
@@ -16,6 +15,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.UserAccountDeleteStatusEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUserProfileDTO
+import br.com.finsavior.monolith.finsavior_monolith.repository.CardRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import java.time.LocalDateTime
 import java.util.*
+import javax.security.sasl.AuthenticationException
 
 @Service
 class UserService(
@@ -41,6 +42,7 @@ class UserService(
     private val externalUserRepository: ExternalUserRepository,
     private val deleteAccountProducer: DeleteAccountProducer,
     private val passwordEncoder: PasswordEncoder,
+    private val cardRepository: CardRepository,
     @Lazy private val billService: BillService
 ) {
 
@@ -191,6 +193,7 @@ class UserService(
                 user.roles.clear()
                 userRepository.save(user)
                 billService.deleteAllUserData(userId)
+                cardRepository.deleteByUserId(userId)
                 userRepository.delete(user)
                 externalUserRepository.deleteByUserId(userId)
                 updateUserDeleteStatus(userTransactionManager, UserAccountDeleteStatusEnum.FINISHED.id)

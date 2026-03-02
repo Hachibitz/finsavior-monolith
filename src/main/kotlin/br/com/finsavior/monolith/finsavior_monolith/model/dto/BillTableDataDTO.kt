@@ -21,4 +21,5 @@ data class BillTableDataDTO (
     var entryMethod: BillEntryMethodEnum = BillEntryMethodEnum.MANUAL,
     var isRecurrent: Boolean? = null,
     var paymentType: String? = null,
+    var cardId: String? = null,
 )
