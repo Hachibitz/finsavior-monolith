@@ -64,7 +64,7 @@ class MCPToolsConfig(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String,
         @P("The ID of the credit card") cardId: Long
     ): List<BillTableDataDTO> =
-        billService.loadCardTableDataByCardId(billDate, cardId)
+        billService.loadCardExpenses(billDate, cardId)
 
     @Tool(value = ["Load assets (salary, bonuses, etc) for a given month"])
     fun loadAssetsTableData(
@@ -81,6 +81,29 @@ class MCPToolsConfig(
     @Tool(value = ["Delete a bill item by its ID"])
     fun deleteBillItem(@P("itemId from bill_table_data") itemId: Long): String {
         billService.deleteItemFromTable(itemId)
+        return "OK"
+    }
+
+    @Tool(value = [
+        "Deletes a bill, expense, or financial record by its unique ID.",
+        "If the bill is part of an installment plan, you can choose to delete all related installments.",
+        "To delete all installments, ask the user for confirmation and set 'deleteAll' to true."
+    ])
+    fun deleteBill(
+        @P(value =
+            "The unique identifier (ID) of the bill to be deleted. " +
+            "If the bill is part of an installment, " +
+            "this ID can be from any of the installments in the group."
+        )
+        itemId: Long,
+        @P(value =
+            "Set to 'true' to delete all bills in the installment group." +
+            "Set to 'false' to delete only the specified bill." +
+            "Always confirm with the user before setting this to 'true'."
+        )
+        deleteAll: Boolean
+    ): String {
+        billService.deleteItem(itemId, deleteAll)
         return "OK"
     }
 

@@ -41,7 +41,7 @@ class BillController(
         @RequestParam billDate: String,
         @RequestParam cardId: Long
     ): List<BillTableDataDTO> =
-        service.loadCardTableDataByCardId(billDate, cardId)
+        service.loadCardExpenses(billDate, cardId)
 
     @GetMapping("/load-assets-table-data")
     fun loadAssetsTableData(@RequestParam billDate: String): List<BillTableDataDTO> =
@@ -53,8 +53,11 @@ class BillController(
 
     @DeleteMapping("/delete")
     @ResponseStatus(HttpStatus.OK)
-    fun deleteItemFromMainTable(@RequestParam itemId: Long) =
-        service.deleteItemFromTable(itemId)
+    fun deleteItem(
+        @RequestParam itemId: Long,
+        @RequestParam(defaultValue = "false") deleteAll: Boolean
+    ) =
+        service.deleteItem(itemId, deleteAll)
 
     @PutMapping("/edit")
     @ResponseStatus(HttpStatus.CREATED)

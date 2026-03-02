@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.FsCoinPricesResponse
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AnalysisTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserFsCoinRepository
@@ -17,6 +18,9 @@ class FsCoinService(
     @param:Value("\${fscoin-cost-for-trimester-analysis}") private val fsCoinCostForTrimesterAnalysis: Long,
     @param:Value("\${fscoin-cost-for-yearly-analysis}") private val fsCoinCostForYearlyAnalysis: Long,
     @param:Value("\${fscoin-cost-for-document-import:10}") private val fsCoinCostForDocumentImport: Long,
+    @param:Value("\${fscoins-shopping-price-begginer}") private val priceBeginner: Double,
+    @param:Value("\${fscoins-shopping-price-popular}") private val pricePopular: Double,
+    @param:Value("\${fscoins-shopping-price-economic}") private val priceEconomic: Double,
 ) {
 
     private fun currentUserId(): Long {
@@ -52,6 +56,14 @@ class FsCoinService(
 
         record.balance -= amount
         userFsCoinRepository.save(record)
+    }
+
+    fun getShoppingPrices(): FsCoinPricesResponse {
+        return FsCoinPricesResponse(
+            beginner = priceBeginner,
+            popular = pricePopular,
+            economic = priceEconomic
+        )
     }
 
     fun hasEnoughCoinsForAnalysis(

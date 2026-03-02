@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller
 
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.FsCoinPricesResponse
 import br.com.finsavior.monolith.finsavior_monolith.service.FsCoinService
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -23,4 +24,9 @@ class FsCoinController(
     @ResponseStatus(HttpStatus.OK)
     fun earnCoins(): Long =
         fsCoinService.earnCoins()
+
+    @GetMapping("/shopping-prices")
+    @ResponseStatus(HttpStatus.OK)
+    fun getShoppingPrices(): FsCoinPricesResponse =
+        fsCoinService.getShoppingPrices()
 }

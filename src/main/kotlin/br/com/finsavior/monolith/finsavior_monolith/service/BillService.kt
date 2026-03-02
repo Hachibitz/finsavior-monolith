@@ -5,6 +5,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserExceptio
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
+import br.com.finsavior.monolith.finsavior_monolith.model.entity.Installment
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
@@ -13,6 +14,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toBillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toTableData
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.InstallmentRepository
 import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
@@ -28,6 +30,7 @@ class BillService(
     private val billTableDataRepository: BillTableDataRepository,
     private val userService: UserService,
     private val aiAdviceRepository: AiAdviceRepository,
+    private val installmentRepository: InstallmentRepository
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -90,7 +93,7 @@ class BillService(
             BillTableEnum.CREDIT_CARD
         ).map { it.toBillTableDataDTO() }
 
-    fun loadCardTableDataByCardId(billDate: String, cardId: Long): List<BillTableDataDTO> =
+    fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
             userService.getUserByContext().id!!,
             this.formatBillDate(billDate),
@@ -111,6 +114,18 @@ class BillService(
             this.formatBillDate(billDate),
             BillTableEnum.PAYMENT_CARD
         ).map { it.toBillTableDataDTO() }
+
+    @Transactional
+    fun deleteItem(itemId: Long, deleteAll: Boolean) {
+        val bill = billTableDataRepository.findById(itemId)
+            .orElseThrow { IllegalArgumentException("Registro não encontrado") }
+
+        if (deleteAll && bill.installment != null) {
+            installmentRepository.delete(bill.installment!!)
+        } else {
+            billTableDataRepository.delete(bill)
+        }
+    }
 
     fun deleteItemFromTable(itemId: Long) =
         billTableDataRepository.deleteById(itemId)
@@ -168,7 +183,6 @@ class BillService(
             register.billDate = "${month.value} $requestYear"
 
             val saved = billTableDataRepository.save(register)
-            // capture id corresponding to the starting month (the one shown in the front)
             if (firstId == null && month.id == monthId) {
                 firstId = saved.id
             }
@@ -181,19 +195,22 @@ class BillService(
 
     @Transactional
     private fun saveInstallmentRegister(request: BillTableDataDTO): Long {
+        val user = userService.getUserByContext()
         val totalInstallments = request.installmentCount ?: 1
         var currentBillDate = request.billDate
-
         var firstId: Long? = null
+
+        val installment = Installment(user = user)
+        val savedInstallment = installmentRepository.save(installment)
 
         for (i in (request.currentInstallment ?: 1)..totalInstallments) {
             val register: BillTableData = request.toTableData()
             register.audit = Audit()
-
             register.billDate = currentBillDate
             register.totalInstallments = totalInstallments
             register.currentInstallment = i
             register.billDescription = " ${request.billDescription} | Parcela ($i/$totalInstallments)"
+            register.installment = savedInstallment
 
             val saved = billTableDataRepository.save(register)
             if (firstId == null) {
