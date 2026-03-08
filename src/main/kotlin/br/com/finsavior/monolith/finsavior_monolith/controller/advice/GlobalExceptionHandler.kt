@@ -5,10 +5,12 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationExce
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardDeletionException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardUnauthorizedException
+import br.com.finsavior.monolith.finsavior_monolith.exception.CategoryNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CommunicationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
+import br.com.finsavior.monolith.finsavior_monolith.exception.UnauthorizedException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
@@ -97,8 +99,18 @@ class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, ex.message ?: "Card cannot be deleted due to linked resources")
     }
 
+    @ExceptionHandler(CategoryNotFoundException::class)
+    fun handleCategoryNotFoundException(ex: CategoryNotFoundException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ex.message ?: "Category not found")
+    }
+
+    @ExceptionHandler(UnauthorizedException::class)
+    fun handleUnauthorizedException(ex: UnauthorizedException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ex.message ?: "Access denied")
+    }
+
     private fun buildErrorResponse(status: HttpStatus, msg: String): ResponseEntity<ErrorResponse> {
-        return ResponseEntity.status(status).body(ErrorResponse(status.ordinal, msg))
+        return ResponseEntity.status(status).body(ErrorResponse(status.value(), msg))
     }
 
     data class ErrorResponse(val code: Int, val msg: String)

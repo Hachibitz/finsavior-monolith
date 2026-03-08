@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.FinancialSummary
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CurrentFinancialSituationEnum
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -30,10 +31,10 @@ class FinancialService(
         val cardPaymentTotal = paymentCardTableData.sumOf { it.billValue }
         val totalPaid = mainTableData.filter { it.paid }.sumOf { it.billValue } + cardPaymentTotal
         val currentlyAvailableIncome = assetsTableData
-            .filter { it.billType == "Caixa" || it.billType == "Ativo" || it.billType == "INCOME" }
+            .filter { it.billType == BillTypeEnum.INCOME }
             .sumOf { it.billValue }
         val totalDebit =
-            mainTableData.filter { it.billType == "Passivo" || it.billType == "EXPENSE" }.sumOf { it.billValue } +
+            mainTableData.filter { it.billType == BillTypeEnum.EXPENSE }.sumOf { it.billValue } +
                     cardTableData.sumOf { it.billValue }
         val totalLeft = totalDebit - totalPaid
         val foreseenBalance = currentlyAvailableIncome - totalDebit

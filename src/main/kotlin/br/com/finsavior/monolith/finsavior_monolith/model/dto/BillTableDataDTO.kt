@@ -2,12 +2,13 @@ package br.com.finsavior.monolith.finsavior_monolith.model.dto
 
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
 import java.math.BigDecimal
 
 data class BillTableDataDTO (
     var id: Long,
     var userId: Long,
-    var billType: String,
+    var billType: BillTypeEnum,
     var billDate: String,
     var billName: String,
     var billValue: BigDecimal,

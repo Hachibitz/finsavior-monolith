@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
@@ -26,8 +27,9 @@ class BillTableData(
     @Column(name = "user_id", nullable = false)
     var userId: Long,
 
-    @Column(name = "bill_type")
-    val billType: String,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "bill_type", columnDefinition = "varchar(255)")
+    val billType: BillTypeEnum,
 
     @Column(name = "bill_date", nullable = false)
     var billDate: String,
