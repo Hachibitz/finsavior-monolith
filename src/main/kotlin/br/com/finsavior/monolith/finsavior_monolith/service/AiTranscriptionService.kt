@@ -33,6 +33,7 @@ class AiTranscriptionService(
     private val userService: UserService,
     private val audioProcessingHistoryService: AudioProcessingHistoryService,
     private val fsCoinService: FsCoinService,
+    private val categoryService: CategoryService,
     @param:Value("\${fscoins-cost-for-audio:10}") private val coinsCostForAudio: Long,
 ) {
     companion object {
@@ -237,29 +238,52 @@ class AiTranscriptionService(
 
     private fun getBillFromWhisperPrompt(text: String): String {
         val today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        val categories = categoryService.listCategories().joinToString(", ") { it.name }
 
         return """
-            Você é um assistente financeiro. Hoje é $today.
-            Analise o texto do usuário e extraia os dados para uma conta.
-            
-            REGRAS:
-            1. Se o usuário quiser "conversar", "falar com a Savi", "tirar dúvida", "abrir chat" ou algo que não seja adicionar uma conta, retorne o JSON com "redirectAction": "CHAT_SAVI".
-            2. Caso contrário, extraia os dados da conta.
-            3. Se o usuário mencionar que parcelou, retorne o billValue com o valor da parcela e não com o valor total da compra, o valor total da compra deve ser inserido na descrição.
-            
+            Você é um assistente financeiro especialista em extrair dados de texto. Hoje é $today.
+            Analise o texto do usuário e extraia os dados para uma conta, preenchendo o JSON abaixo.
+
+            REGRAS DE EXTRAÇÃO:
+
+            1.  **Redirecionamento para Chat**:
+                *   Se o usuário quiser "conversar", "falar com a Savi", "tirar dúvida", "abrir chat" ou algo que não seja adicionar uma conta, retorne o JSON com "redirectAction": "CHAT_SAVI".
+
+            2.  **Extração de Dados da Conta**:
+                *   **billTable**:
+                    *   `CREDIT_CARD`: Se o usuário mencionar "crédito", "cartão", "vencimento", "fatura" ou "parcelado".
+                        *   Exemplo: "comprei dois pastéis no crédito, foi 50 reais" -> "billTable": "CREDIT_CARD"
+                    *   `ASSETS`: Se for uma entrada de dinheiro, como "salário", "recebi", "ganhei", "bônus".
+                        *   Exemplo: "Recebi meu salário, 8000 reais" -> "billTable": "ASSETS"
+                    *   `PAYMENT_CARD`: Se for um pagamento de fatura de cartão.
+                        *   Exemplo: "paguei a fatura do cartão, 500 reais" -> "billTable": "PAYMENT_CARD"
+                    *   `MAIN`: Para todas as outras despesas.
+                        *   Exemplo: "comprei um café, 5 reais" -> "billTable": "MAIN"
+                *   **isRecurrent**:
+                    *   `true`: Se o usuário mencionar "todo mês", "fixo", "recorrente", "mensal".
+                        *   Exemplo: "adiciona uma conta fixa todos os meses, aluguel, mil reais" -> "isRecurrent": true
+                *   **Parcelamento (isInstallment e installmentCount)**:
+                    *   Se o usuário mencionar "parcelado", "vezes", "x" (no sentido de multiplicação).
+                    *   `isInstallment`: true
+                    *   `installmentCount`: o número de parcelas.
+                    *   `billValue`: **O VALOR DA PARCELA**, não o valor total. O valor total deve ir na descrição.
+                        *   Exemplo: "Comprei um celular de 2000 reais em 10x" -> "isInstallment": true, "installmentCount": 10, "billValue": 200.00, "billDescription": "Celular, valor total 2000.00"
+
             Retorne APENAS um JSON estrito (sem markdown) neste formato:
             {
                 "billName": "string (curto, resumido)",
                 "billValue": number,
                 "billDescription": "string (o texto original)",
-                "billCategory": "string (tente adivinhar: Alimentação, Transporte, Lazer, Saúde, Outras)",
+                "billCategory": "string (tente adivinhar pelas opções a seguir: $categories)",
+                "billTable": "string (MAIN, CREDIT_CARD, ASSETS, ou PAYMENT_CARD)",
                 "isInstallment": boolean,
                 "installmentCount": int (se não mencionado, null),
-                "isRecurrent": boolean (se falar 'todo mês' ou 'fixo'),
+                "currentInstallment": int (sempre 1 se for um novo parcelamento, ou null se não for parcelado),
+                "isRecurrent": boolean (se não mencionado, false),
                 "possibleDate": "string (dd/MM/yyyy)",
                 "redirectAction": "string (CHAT_SAVI ou null)"
             }
-            
+
             Texto: "$text"
         """.trimIndent()
     }

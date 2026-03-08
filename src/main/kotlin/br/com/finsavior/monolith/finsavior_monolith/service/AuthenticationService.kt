@@ -58,8 +58,9 @@ class AuthenticationService(
     }
 
     fun login(loginRequest: LoginRequestDTO, request: HttpServletRequest, response: HttpServletResponse): ResponseEntity<Map<String, String>> {
-        val user = userRepository.findByUsername(loginRequest.username)
-            ?: userRepository.findByEmail(loginRequest.username)
+        val trimmedUsername = loginRequest.username.trim()
+        val user = userRepository.findByUsername(trimmedUsername)
+            ?: userRepository.findByEmail(trimmedUsername)
             ?: throw LoginException("Usuário ou e-mail não encontrado")
 
         val authentication = authenticationManager.authenticate(

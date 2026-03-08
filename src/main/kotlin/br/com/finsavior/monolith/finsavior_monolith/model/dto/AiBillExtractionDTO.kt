@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.model.dto
 
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import java.math.BigDecimal
 
 data class AiBillExtractionDTO(
@@ -7,6 +8,7 @@ data class AiBillExtractionDTO(
     val billValue: BigDecimal? = null,
     val billDescription: String? = null,
     val billCategory: String? = null,
+    val billTable: BillTableEnum? = null,
     val isInstallment: Boolean? = false,
     val installmentCount: Int? = null,
     val currentInstallment: Int? = null,

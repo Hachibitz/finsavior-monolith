@@ -140,7 +140,9 @@ class SecurityConfig(
             "Authorization",
             "Cache-Control",
             "Content-Type",
-            "ngrok-skip-browser-warning"
+            "ngrok-skip-browser-warning",
+            "bypass-tunnel-reminder",
+            "X-Pinggy-No-Screen"
         )
         corsConfiguration.exposedHeaders = listOf("Set-Cookie")
         corsConfiguration.allowCredentials = true
