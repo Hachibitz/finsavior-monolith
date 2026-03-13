@@ -5,7 +5,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
 
 fun BillTableDataDTO.toTableData(): BillTableData =
     BillTableData(
-        id = this.id,
+        id = this.id ?: 0,
         userId = this.userId,
         billName = this.billName,
         billDescription = this.billDescription,

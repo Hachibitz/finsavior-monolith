@@ -4,6 +4,7 @@ import br.com.finsavior.monolith.finsavior_monolith.security.CustomAuthenticatio
 import br.com.finsavior.monolith.finsavior_monolith.security.JWTAuthenticationFilter
 import br.com.finsavior.monolith.finsavior_monolith.security.TokenProvider
 import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -30,7 +31,7 @@ class SecurityConfig(
     private val customAuthenticationProvider: CustomAuthenticationProvider,
     private val tokenProvider: TokenProvider,
     private val userSecurityDetails: UserSecurityDetails,
-    @Value("\${allowed_origins}") private val allowedOrigins: String,
+    @param:Value("\${allowed_origins}") private val allowedOrigins: String,
 ) {
 
     @Autowired
@@ -97,6 +98,13 @@ class SecurityConfig(
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()
+            }
+            .exceptionHandling { exceptionHandling ->
+                exceptionHandling.authenticationEntryPoint { _, response, _ ->
+                    response.status = HttpServletResponse.SC_UNAUTHORIZED
+                    response.contentType = "application/json"
+                    response.writer.write("{\"code\": 401, \"msg\": \"Não autenticado\"}")
+                }
             }
             .logout { logout ->
                 logout.logoutUrl("/logout")

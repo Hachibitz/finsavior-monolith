@@ -58,10 +58,12 @@ class BillService(
     @Transactional
     fun billUpdate(billTableDataDTO: BillTableDataDTO) {
         try {
-            val existingRecord = billTableDataRepository.findById(billTableDataDTO.id).orElseThrow {
+            val id = billTableDataDTO.id ?: throw IllegalArgumentException("ID não informado")
+            val existingRecord = billTableDataRepository.findById(id).orElseThrow {
                 IllegalArgumentException("Registro não encontrado")
             }
             existingRecord.apply {
+                billDate = formatBillDate(billTableDataDTO.billDate)
                 billName = billTableDataDTO.billName
                 billDescription = billTableDataDTO.billDescription
                 billValue = billTableDataDTO.billValue

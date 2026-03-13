@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.controller.advice
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiProcessDocumentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.AuthenticationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardDeletionException
@@ -8,6 +9,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.CardUnauthorizedEx
 import br.com.finsavior.monolith.finsavior_monolith.exception.CategoryNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CommunicationException
+import br.com.finsavior.monolith.finsavior_monolith.exception.GoalNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UnauthorizedException
@@ -104,9 +106,19 @@ class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ex.message ?: "Category not found")
     }
 
+    @ExceptionHandler(GoalNotFoundException::class)
+    fun handleGoalNotFoundException(ex: GoalNotFoundException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ex.message ?: "Goal not found")
+    }
+
     @ExceptionHandler(UnauthorizedException::class)
     fun handleUnauthorizedException(ex: UnauthorizedException): ResponseEntity<ErrorResponse> {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ex.message ?: "Access denied")
+    }
+
+    @ExceptionHandler(AiAdviceException::class)
+    fun handleAiAdviceException(ex: AiAdviceException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "AI advice error")
     }
 
     private fun buildErrorResponse(status: HttpStatus, msg: String): ResponseEntity<ErrorResponse> {

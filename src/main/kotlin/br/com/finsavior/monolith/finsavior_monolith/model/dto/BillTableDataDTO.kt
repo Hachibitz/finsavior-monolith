@@ -6,7 +6,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
 import java.math.BigDecimal
 
 data class BillTableDataDTO (
-    var id: Long,
+    var id: Long? = null,
     var userId: Long,
     var billType: BillTypeEnum,
     var billDate: String,

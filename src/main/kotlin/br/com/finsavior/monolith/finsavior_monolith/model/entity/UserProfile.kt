@@ -13,22 +13,24 @@ import jakarta.persistence.Table
 @Table(name = "user_profile")
 data class UserProfile (
     @Id
-    @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    @Column(name = "user_id", unique = true)
-    var userId: Long? = null,
+    @Column(name = "user_id", nullable = false, unique = true)
+    val userId: Long?,
 
-    @Column(name = "name")
+    @Column(nullable = false)
     var name: String,
 
-    @Column(name = "email")
-    var email: String,
+    @Column(unique = true, nullable = false)
+    val email: String,
 
-    @Column(name = "profile_picture", columnDefinition = "LONGBLOB")
     @Lob
+    @Column(name = "profile_picture", columnDefinition = "LONGBLOB")
     var profilePicture: ByteArray? = null,
+
+    @Column(name = "is_whatsapp_enabled", nullable = false)
+    var isWhatsappEnabled: Boolean = false,
 
     @Embedded
     var audit: Audit? = null

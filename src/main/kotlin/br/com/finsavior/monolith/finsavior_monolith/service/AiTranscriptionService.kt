@@ -79,17 +79,35 @@ class AiTranscriptionService(
         log.info("M=transcribeAudio, I=Iniciando processo. Arquivo recebido: ${audioFile.originalFilename}, Tamanho: ${audioFile.size}")
 
         val mp3File = convertToMp3(audioFile)
+        return sendToOpenAI(mp3File)
+    }
 
+    fun transcribeAudioFromFile(audioFile: File): String {
+        log.info("M=transcribeAudioFromFile, I=Iniciando processo. Arquivo recebido: ${audioFile.name}, Tamanho: ${audioFile.length()}")
+
+        val mp3File = convertToMp3(audioFile)
         try {
-            log.info("M=transcribeAudio, I=Enviando MP3 convertido para OpenAI.")
+            return sendToOpenAI(mp3File)
+        } finally {
+            try {
+                Files.deleteIfExists(audioFile.toPath())
+            } catch (ex: Exception) {
+                log.warn("Falha ao deletar arquivo de áudio original: ${audioFile.absolutePath}")
+            }
+        }
+    }
+
+    private fun sendToOpenAI(mp3File: File): String {
+        try {
+            log.info("M=sendToOpenAI, I=Enviando MP3 convertido para OpenAI.")
             val requestEntity = createOpenAiTranscriptionRequest(mp3File)
             val response = restTemplate.postForEntity(OPEN_AI_TRANSCRIBE_AUDIO_API_URL, requestEntity, Map::class.java)
             val transcription = extractTranscriptionFromResponse(response.body)
 
-            log.info("M=transcribeAudio, I=Transcrição de áudio bem-sucedida.")
+            log.info("M=sendToOpenAI, I=Transcrição de áudio bem-sucedida.")
             return transcription
         } catch (e: Exception) {
-            log.error("M=transcribeAudio, E=Erro na chamada da OpenAI.", e)
+            log.error("M=sendToOpenAI, E=Erro na chamada da OpenAI.", e)
             throw WhisperApiException("Erro na transcrição: ${e.message}", e)
         } finally {
             try {
@@ -118,21 +136,13 @@ class AiTranscriptionService(
             ?: throw WhisperApiException("Resposta da OpenAI não contém o campo 'text'.")
     }
 
-    /**
-     * Pega o MultipartFile, salva em disco temporariamente,
-     * converte para MP3 usando FFmpeg (JAVE2) e retorna o arquivo MP3.
-     */
-    private fun convertToMp3(sourceFile: MultipartFile): File {
-        val sourceTemp = File.createTempFile("upload_", "_src")
+    private fun convertToMp3(sourceFile: File): File {
         val targetTemp = File.createTempFile("convert_", ".mp3")
-
         try {
-            sourceFile.transferTo(sourceTemp)
-
             val audioAttributes = createAudioAttributes()
             val encodingAttributes = createEncodingAttributes(audioAttributes)
 
-            Encoder().encode(MultimediaObject(sourceTemp), targetTemp, encodingAttributes)
+            Encoder().encode(MultimediaObject(sourceFile), targetTemp, encodingAttributes)
 
             log.info("M=convertToMp3, I=Conversão realizada com sucesso: ${targetTemp.absolutePath}")
             return targetTemp
@@ -140,6 +150,14 @@ class AiTranscriptionService(
         } catch (e: Exception) {
             log.error("M=convertToMp3, E=Erro na conversão de áudio.", e)
             throw RuntimeException("Falha ao converter áudio para MP3: ${e.message}")
+        }
+    }
+
+    private fun convertToMp3(sourceFile: MultipartFile): File {
+        val sourceTemp = File.createTempFile("upload_", "_src")
+        try {
+            sourceFile.transferTo(sourceTemp)
+            return convertToMp3(sourceTemp)
         } finally {
             try {
                 Files.deleteIfExists(sourceTemp.toPath())
@@ -165,7 +183,7 @@ class AiTranscriptionService(
         }
     }
 
-    private fun extractDataFromText(text: String): AiBillExtractionDTO {
+    fun extractDataFromText(text: String): AiBillExtractionDTO {
         log.info("M=extractDataFromText, I=Iniciando extração de dados do texto.")
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON

@@ -19,17 +19,18 @@ import jakarta.persistence.Table
 data class User(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
-    @Column(name="username", unique = true)
+    @Column(name="username", unique = true, nullable = false)
     var username: String,
+    @Column(name="password", nullable = false)
     var password: String,
 
-    @Column(name = "first_name")
+    @Column(name = "first_name", nullable = false)
     var firstName: String,
 
-    @Column(name = "last_name")
+    @Column(name = "last_name", nullable = false)
     var lastName: String,
 
-    @Column(name="email", unique = true)
+    @Column(name="email", unique = true, nullable = false)
     var email: String,
 
     @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
@@ -50,7 +51,10 @@ data class User(
     var enabled: Boolean,
 
     @Embedded
-    var audit: Audit? = null
+    var audit: Audit? = null,
+
+    @Column(name = "phone_number", unique = true)
+    var phoneNumber: String? = null,
 ) {
     fun getFirstAndLastName(): String {
         val completeName = "${this.firstName} ${this.lastName}".trim()

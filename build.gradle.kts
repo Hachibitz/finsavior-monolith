@@ -34,6 +34,7 @@ val firebaseAdminVersion = "9.4.3"
 val wsSchildAudioConverterVersion = "3.5.0"
 val pdfBoxVersion = "2.0.29"
 val resilience4jVersion = "2.0.0"
+val twilioSdkVersion = "10.9.2"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -61,6 +62,8 @@ dependencies {
     implementation("ws.schild:jave-all-deps:$wsSchildAudioConverterVersion")
     implementation("org.apache.pdfbox:pdfbox:$pdfBoxVersion")
     implementation("io.github.resilience4j:resilience4j-ratelimiter:$resilience4jVersion")
+	implementation("com.twilio.sdk:twilio:${twilioSdkVersion}")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
