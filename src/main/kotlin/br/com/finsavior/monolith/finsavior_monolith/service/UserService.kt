@@ -4,8 +4,10 @@ import br.com.finsavior.monolith.finsavior_monolith.assync.producer.DeleteAccoun
 import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PasswordUpdateException
 import br.com.finsavior.monolith.finsavior_monolith.exception.ProfileChangeException
+import br.com.finsavior.monolith.finsavior_monolith.exception.WhatsappIntegrationException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChangePasswordRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.DeleteAccountRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.EnableWhatsappRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ProfileDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.UpdateProfileRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
@@ -20,6 +22,7 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepos
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserTransactionManagerRepository
+import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils
 import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.context.annotation.Lazy
@@ -253,5 +256,56 @@ class UserService(
         )
 
         return user
+    }
+
+    @Transactional
+    fun enableWhatsapp(request: EnableWhatsappRequest) {
+        val user: User = getUserByContext()
+        val formattedPhone = formatPhoneNumber(request.phoneNumber)
+
+        if (request.isEnabled) {
+            validatePlanForWhatsapp(user)
+            
+            checkPhoneUniqueness(formattedPhone, user.id)
+            user.phoneNumber = formattedPhone
+
+            user.userProfile!!.isWhatsappEnabled = true
+        } else {
+            user.userProfile!!.isWhatsappEnabled = false
+            user.phoneNumber = formattedPhone
+        }
+
+        userRepository.save(user)
+    }
+
+    private fun formatPhoneNumber(phone: String): String {
+        val sanitizedPhone = phone.replace(Regex("[^\\d+]"), "")
+        return if (sanitizedPhone.startsWith("+")) sanitizedPhone else "+$sanitizedPhone"
+    }
+
+    private fun validatePlanForWhatsapp(user: User) {
+        val planType = CommonUtils.getPlanTypeById(user.userPlan!!.plan.id)
+        if (planType == PlanTypeEnum.FREE) {
+            throw WhatsappIntegrationException("A integração com o WhatsApp está disponível apenas para usuários de planos pagos. Considere fazer um upgrade para utilizar a funcionalidade.")
+        }
+    }
+
+    private fun checkPhoneUniqueness(phone: String, currentUserId: Long?) {
+        val existingUser = userRepository.findByPhoneNumber(phone)
+        if (existingUser != null && existingUser.id != currentUserId) {
+            throw WhatsappIntegrationException("Este número de telefone já está vinculado a outra conta.")
+        }
+    }
+
+    @Transactional
+    fun disableWhatsapp() {
+        try {
+            val user = getUserByContext()
+            user.userProfile!!.isWhatsappEnabled = false
+            userRepository.save(user)
+        } catch (e: Exception) {
+            log.error("Erro ao desabilitar WhatsApp para o usuário: ${e.message}", e)
+            throw ProfileChangeException("Erro ao desabilitar integração com WhatsApp", HttpStatus.BAD_REQUEST)
+        }
     }
 }

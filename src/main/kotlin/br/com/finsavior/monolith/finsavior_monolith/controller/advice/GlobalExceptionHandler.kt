@@ -14,6 +14,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UnauthorizedException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
+import br.com.finsavior.monolith.finsavior_monolith.exception.WhatsappIntegrationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
 import org.springframework.http.HttpStatus
@@ -119,6 +120,11 @@ class GlobalExceptionHandler {
     @ExceptionHandler(AiAdviceException::class)
     fun handleAiAdviceException(ex: AiAdviceException): ResponseEntity<ErrorResponse> {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "AI advice error")
+    }
+
+    @ExceptionHandler(WhatsappIntegrationException::class)
+    fun handleWhatsappIntegrationException(ex: WhatsappIntegrationException): ResponseEntity<ErrorResponse> {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "WhatsApp integration error")
     }
 
     private fun buildErrorResponse(status: HttpStatus, msg: String): ResponseEntity<ErrorResponse> {

@@ -28,4 +28,6 @@ fun User.toUserProfileDTO(): ProfileDataDTO =
         firstName = this.firstName,
         lastName = this.lastName,
         name = this.getFirstAndLastName(),
+        phoneNumber = this.phoneNumber,
+        isWhatsappEnabled = this.userProfile!!.isWhatsappEnabled
     )

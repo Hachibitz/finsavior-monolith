@@ -2,8 +2,10 @@ package br.com.finsavior.monolith.finsavior_monolith.controller
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChangePasswordRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.DeleteAccountRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.EnableWhatsappRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.UpdateProfileRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.UserService
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -57,4 +59,14 @@ class UserController(
 
         userService.updateProfile(profilePicture, updateProfileRequest)
     }
+
+    @PatchMapping("/enable-whatsapp")
+    @ResponseStatus(HttpStatus.OK)
+    fun enableWhatsapp(@Valid @RequestBody request: EnableWhatsappRequest): Unit =
+        userService.enableWhatsapp(request)
+
+    @PatchMapping("/disable-whatsapp")
+    @ResponseStatus(HttpStatus.OK)
+    fun disableWhatsapp(): Unit =
+        userService.disableWhatsapp()
 }

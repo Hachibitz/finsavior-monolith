@@ -83,6 +83,7 @@ class SecurityConfig(
                         "/auth/validate-token",
                         "/terms-and-privacy/**",
                         "/stripe/payment/webhook",
+                        "/whatsapp/webhook",
                         "/contact",
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
