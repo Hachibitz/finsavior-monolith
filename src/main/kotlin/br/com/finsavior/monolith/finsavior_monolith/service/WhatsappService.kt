@@ -1,9 +1,12 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.WhatsappIntegrationException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
+import br.com.finsavior.monolith.finsavior_monolith.model.entity.WhatsappMessageHistory
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.WhatsappMessageHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.security.UserSecurityDetails
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils
 import kotlinx.coroutines.delay
@@ -11,7 +14,11 @@ import mu.KotlinLogging
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
+
+class WhatsappSilentException : RuntimeException("Silently ignored")
 
 @Service
 class WhatsappService(
@@ -19,11 +26,14 @@ class WhatsappService(
     private val twilioService: TwilioService,
     private val aiTranscriptionService: AiTranscriptionService,
     private val aiChatService: AiChatService,
-    private val userSecurityDetails: UserSecurityDetails
+    private val userSecurityDetails: UserSecurityDetails,
+    private val whatsappMessageHistoryRepository: WhatsappMessageHistoryRepository
 ) {
     private val logger = KotlinLogging.logger {}
 
     private val markdownImageRegex: Pattern = Pattern.compile("!\\[.*?\\]\\((https?://[^\\s)]+)\\)")
+    
+    private val lastWarningSentMap = ConcurrentHashMap<Long, LocalDateTime>()
 
     companion object {
         private const val TWILIO_MESSAGE_LIMIT = 1580 // Limite do WhatsApp Twilio é 1600
@@ -33,6 +43,9 @@ class WhatsappService(
         val user = validateUser(from) ?: return
 
         try {
+            validateWhatsappQuota(user)
+            whatsappMessageHistoryRepository.save(WhatsappMessageHistory(userId = user.id!!))
+            
             authenticateUserInContext(user)
 
             val request = AiChatRequest(question = body, isUsingCoins = false)
@@ -40,6 +53,11 @@ class WhatsappService(
             val aiResponse = responseEntity.body?.answer ?: "Desculpe, não consegui processar sua solicitação."
 
             processAndSendAiResponse(from, aiResponse)
+        } catch (e: WhatsappSilentException) {
+            logger.warn { "WhatsApp limit triggered for user ${user.id}, but warning was already sent recently. Silently dropping." }
+        } catch (e: WhatsappIntegrationException) {
+            logger.warn { "WhatsApp limit/rule triggered for user ${user.id}: ${e.message}" }
+            twilioService.sendMessage(from, e.message ?: "Ação não permitida.")
         } catch (e: Exception) {
             logger.error(e) { "Error processing text message from $from" }
             twilioService.sendMessage(from, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.")
@@ -52,6 +70,8 @@ class WhatsappService(
         val user = validateUser(from) ?: return
 
         try {
+            validateWhatsappQuota(user)
+            
             val audioFile = twilioService.downloadMedia(mediaUrl)
             val transcribedText = aiTranscriptionService.transcribeAudioFromFile(audioFile)
 
@@ -64,6 +84,11 @@ class WhatsappService(
             logger.info { "Audio from $from transcribed to: '$transcribedText'" }
             processIncomingMessage(from, transcribedText)
 
+        } catch (e: WhatsappSilentException) {
+            logger.warn { "WhatsApp limit triggered for user ${user.id}, but warning was already sent recently. Silently dropping." }
+        } catch (e: WhatsappIntegrationException) {
+            logger.warn { "WhatsApp limit/rule triggered for user ${user.id}: ${e.message}" }
+            twilioService.sendMessage(from, e.message ?: "Ação não permitida.")
         } catch (e: Exception) {
             logger.error(e) { "Error processing audio from $from" }
             twilioService.sendMessage(from, "Desculpe, ocorreu um erro ao processar seu áudio. Tente novamente mais tarde.")
@@ -88,18 +113,22 @@ class WhatsappService(
     }
 
     private fun resolveBrazilianPhoneNumber(from: String): User? {
-        return if (from.length == 13) {
-            // Número sem o 9 (Ex: +55 84 9999999). Tenta buscar na base COM o 9.
-            val ddd = from.substring(0, 5) // "+5584"
-            val number = from.substring(5) // "8398888"
-            userRepository.findByPhoneNumber("${ddd}9$number")
-        } else if (from.length == 14) {
-            // Número com o 9 (Ex: +55 84 99999999). Tenta buscar na base SEM o 9.
-            val ddd = from.substring(0, 5) // "+5584"
-            val number = from.substring(6) // Pula o 9
-            userRepository.findByPhoneNumber("$ddd$number")
-        } else {
-            null
+        return when (from.length) {
+            13 -> {
+                // Número sem o 9 (Ex: +55 84 9999999). Tenta buscar na base COM o 9.
+                val ddd = from.substring(0, 5) // "+5584"
+                val number = from.substring(5) // "8398888"
+                userRepository.findByPhoneNumber("${ddd}9$number")
+            }
+            14 -> {
+                // Número com o 9 (Ex: +55 84 99999999). Tenta buscar na base SEM o 9.
+                val ddd = from.substring(0, 5) // "+5584"
+                val number = from.substring(6) // Pula o 9
+                userRepository.findByPhoneNumber("$ddd$number")
+            }
+            else -> {
+                null
+            }
         }
     }
 
@@ -118,14 +147,32 @@ class WhatsappService(
             return null
         }
 
+        return user
+    }
+
+    private fun validateWhatsappQuota(user: User) {
         val planType = user.userPlan?.plan?.id?.let { CommonUtils.getPlanTypeById(it) } ?: PlanTypeEnum.FREE
         if (planType == PlanTypeEnum.FREE) {
-            logger.warn { "User ${user.id} is on a FREE plan and cannot use the Whatsapp feature." }
-            twilioService.sendMessage(from, "Esta é uma funcionalidade para usuários assinantes. Por favor, considere fazer um upgrade para um de nossos planos pagos.")
-            return null
+            throw WhatsappIntegrationException("Esta é uma funcionalidade para usuários assinantes. Por favor, considere fazer um upgrade para um de nossos planos pagos.")
         }
 
-        return user
+        if (planType.maxWhatsappMessagesPerMonth != Int.MAX_VALUE) {
+            val now = LocalDateTime.now()
+            val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
+            val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
+
+            val usageCount = whatsappMessageHistoryRepository.countByUserIdAndCreatedAtBetween(user.id!!, startOfMonth, endOfMonth)
+
+            if (usageCount >= planType.maxWhatsappMessagesPerMonth) {
+                val lastWarning = lastWarningSentMap[user.id!!]
+                if (lastWarning == null || lastWarning.isBefore(now.minusHours(1))) {
+                    lastWarningSentMap[user.id!!] = now
+                    throw WhatsappIntegrationException("Você atingiu o limite de ${planType.maxWhatsappMessagesPerMonth} mensagens via WhatsApp do seu plano. Use o aplicativo web ou faça upgrade para enviar mais.")
+                } else {
+                    throw WhatsappSilentException()
+                }
+            }
+        }
     }
 
     private suspend fun processAndSendAiResponse(to: String, response: String) {

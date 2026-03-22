@@ -10,15 +10,16 @@ enum class PlanTypeEnum(
     val amountOfChatMessagesWithSavi: Int,
     val maxTokensPerMonth: Int,
     val maxAudioBillEntries: Int,
-    val maxGoalAdvicesPerMonth: Int
+    val maxGoalAdvicesPerMonth: Int,
+    val maxWhatsappMessagesPerMonth: Int
 ) {
-    FREE("1L", 1, 0, 0, 2, 4000, 2, 1),
-    STRIPE_BASIC_MONTHLY("UNSET", 3, 1, 0, 15, 30000, Int.MAX_VALUE, 5),
-    STRIPE_BASIC_ANNUAL("UNSET", 3, 1, 0, 15, 30000, Int.MAX_VALUE, 5),
-    STRIPE_PLUS_MONTHLY("UNSET", 12, 3, 1, 50, 100000, Int.MAX_VALUE, 10),
-    STRIPE_PLUS_ANNUAL("UNSET", 12, 3, 1, 50, 100000, Int.MAX_VALUE, 10),
-    STRIPE_PREMIUM_ANNUAL("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE),
-    STRIPE_PREMIUM_MONTHLY("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE);
+    FREE("1L", 1, 0, 0, 2, 4000, 2, 1, 0),
+    STRIPE_BASIC_MONTHLY("UNSET", 3, 1, 0, 15, 30000, Int.MAX_VALUE, 5, 15),
+    STRIPE_BASIC_ANNUAL("UNSET", 3, 1, 0, 15, 30000, Int.MAX_VALUE, 5, 15),
+    STRIPE_PLUS_MONTHLY("UNSET", 12, 3, 1, 50, 100000, Int.MAX_VALUE, 10, 35),
+    STRIPE_PLUS_ANNUAL("UNSET", 12, 3, 1, 50, 100000, Int.MAX_VALUE, 10, 35),
+    STRIPE_PREMIUM_MONTHLY("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, 100),
+    STRIPE_PREMIUM_ANNUAL("UNSET", Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, Int.MAX_VALUE, 100);
 
     companion object {
         fun fromProductId(value: String): PlanTypeEnum? {
