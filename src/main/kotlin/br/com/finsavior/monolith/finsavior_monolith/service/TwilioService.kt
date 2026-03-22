@@ -124,4 +124,8 @@ class TwilioService(
 
         return validator.validate(url, params, signature)
     }
+    
+    fun getAgentNumber(): String {
+        return fromNumber.replace("whatsapp:", "").trim()
+    }
 }

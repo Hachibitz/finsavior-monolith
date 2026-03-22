@@ -95,7 +95,8 @@ class SecurityConfig(
                         "/bill/**",
                         "/user/**",
                         "/ai-advice/**",
-                        "/payment/**"
+                        "/payment/**",
+                        "/whatsapp/**"
                     ).hasAnyRole("USER", "ADMIN")
                     // Todas as outras requisições exigem autenticação
                     .anyRequest().authenticated()
