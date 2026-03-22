@@ -9,6 +9,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.WebhookRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStatusEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toExternalUser
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toWebhookRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
@@ -28,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional
 class StripeWebhookService(
     private val userService: UserService,
     private val webhookProducer: WebhookProducer,
-    @Value("\${stripe.webhook-secret}") private val endpointSecret: String,
+    @param:Value("\${stripe.webhook-secret}") private val endpointSecret: String,
     private val stripeClient: StripeClient,
     private val externalUserRepository: ExternalUserRepository,
     private val userRepository: UserRepository,
@@ -69,6 +70,10 @@ class StripeWebhookService(
                     externalUserRepository.save(
                         webhookRequestDTO.toExternalUser().apply { this.isTrialUsed = finalTrialStatus }
                     )
+
+                    val updatedUser = userRepository.findById(user.id!!).get()
+                    updatedUser.userPlan?.subscriptionStatus = SubscriptionStatusEnum.ACTIVE
+                    userRepository.save(updatedUser)
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_DELETED -> {
@@ -79,10 +84,17 @@ class StripeWebhookService(
                     externalUserRepository.save(
                         webhookRequestDTO.toExternalUser().apply { this.isTrialUsed = alreadyUsedTrial }
                     )
+
+                    val updatedUser = userRepository.findById(user.id!!).get()
+                    updatedUser.userPlan?.subscriptionStatus = SubscriptionStatusEnum.INACTIVE
+                    userRepository.save(updatedUser)
                 }
 
                 EventTypeEnum.INVOICE_PAYMENT_FAILED -> {
                     emailService.sendInvoicePaymentFailedEmail(webhookRequestDTO.email!!)
+                    val updatedUser = userRepository.findById(user.id!!).get()
+                    updatedUser.userPlan?.subscriptionStatus = SubscriptionStatusEnum.PAST_DUE
+                    userRepository.save(updatedUser)
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_UPDATED -> {
@@ -90,19 +102,17 @@ class StripeWebhookService(
                         throw IllegalArgumentException("PlanType é obrigatório para atualização de assinatura")
                     }
 
-                    val currentUserPlanId = user.userPlan?.plan?.id
-                    val newPlanType = webhookRequestDTO.planType!!.id
-
-                    if (currentUserPlanId == newPlanType) {
-                        log.info("Plano já está atualizado para ${webhookRequestDTO.planType}")
-                        return
-                    }
-
                     if (webhookRequestDTO.planType == PlanTypeEnum.FREE) {
                         userService.downgradeToFree(webhookRequestDTO.email)
                     } else {
                         userService.updatePlanByEmail(webhookRequestDTO.email!!, webhookRequestDTO.planType!!.id)
                     }
+
+                    val updatedUser = userRepository.findById(user.id!!).get()
+                    if (webhookRequestDTO.subscriptionStatus != null) {
+                        updatedUser.userPlan?.subscriptionStatus = webhookRequestDTO.subscriptionStatus
+                    }
+                    userRepository.save(updatedUser)
 
                     previousExternalUser?.let { externalUserRepository.delete(it) }
 
@@ -138,7 +148,9 @@ class StripeWebhookService(
                     val email = session.customerDetails.email ?: throw IllegalStateException("Email não encontrado")
                     val user = userRepository.findByEmail(email) ?: throw IllegalArgumentException("Usuário não encontrado")
 
-                    session.toWebhookRequestDTO(eventType, planType!!, subscriptionId, user.id)
+                    session.toWebhookRequestDTO(eventType, planType!!, subscriptionId, user.id!!).apply {
+                        subscriptionStatus = SubscriptionStatusEnum.ACTIVE
+                    }
                 }
 
                 EventTypeEnum.CUSTOMER_SUBSCRIPTION_UPDATED.value -> {
@@ -149,8 +161,10 @@ class StripeWebhookService(
                     val email = stripeClient.getCustomer(customerId).email
                     val user = userRepository.findByEmail(email!!) ?: throw IllegalArgumentException("Usuário não encontrado")
                     val productId = subscription["items"]["data"][0]["price"]["product"].asText()
+                    val cancelAtPeriodEnd = subscription["cancel_at_period_end"].asBoolean()
 
                     val planType = PlanTypeEnum.fromProductId(productId ?: "")
+                    val subStatus = if (cancelAtPeriodEnd) SubscriptionStatusEnum.CANCELED_AT_PERIOD_END else SubscriptionStatusEnum.ACTIVE
 
                     WebhookRequestDTO(
                         eventType = EventTypeEnum.fromValue(eventType),
@@ -158,7 +172,8 @@ class StripeWebhookService(
                         userId = user.id,
                         planType = planType,
                         subscriptionId = subscriptionId,
-                        externalUserId = customerId
+                        externalUserId = customerId,
+                        subscriptionStatus = subStatus
                     )
                 }
 
@@ -176,7 +191,8 @@ class StripeWebhookService(
                         userId = user.id,
                         planType = PlanTypeEnum.FREE, // downgrade automático
                         subscriptionId = subscriptionId,
-                        externalUserId = customerId
+                        externalUserId = customerId,
+                        subscriptionStatus = SubscriptionStatusEnum.INACTIVE
                     )
                 }
 
@@ -196,7 +212,8 @@ class StripeWebhookService(
                         userId = user.id,
                         planType = planType,
                         subscriptionId = subscriptionId,
-                        externalUserId = customerId
+                        externalUserId = customerId,
+                        subscriptionStatus = SubscriptionStatusEnum.PAST_DUE
                     )
                 }
 

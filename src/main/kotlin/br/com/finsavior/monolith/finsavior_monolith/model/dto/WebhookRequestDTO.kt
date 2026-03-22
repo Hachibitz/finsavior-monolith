@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.model.dto
 
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStatusEnum
 
 data class WebhookRequestDTO(
     val id: String? = null,
@@ -14,6 +15,6 @@ data class WebhookRequestDTO(
     var email: String? = null,
     var externalUserId: String? = null,
     var subscriptionId: String? = null,
-    var rawPayload: String? = null
+    var rawPayload: String? = null,
+    var subscriptionStatus: SubscriptionStatusEnum? = null
 )
-

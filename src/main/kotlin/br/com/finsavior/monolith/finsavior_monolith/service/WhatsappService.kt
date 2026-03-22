@@ -33,7 +33,6 @@ class WhatsappService(
         val user = validateUser(from) ?: return
 
         try {
-            // Autentica o usuário no contexto atual para que as MCP Tools funcionem corretamente
             authenticateUserInContext(user)
 
             val request = AiChatRequest(question = body, isUsingCoins = false)

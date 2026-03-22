@@ -35,6 +35,11 @@ class PaymentController(
     fun cancelSubscription(@RequestBody request: CancelSubscriptionRequest) =
         paymentService.cancelSubscription(request.immediate)
 
+    @PostMapping("/subscription/reactivate")
+    @ResponseStatus(HttpStatus.OK)
+    fun reactivateSubscription() =
+        paymentService.reactivateSubscription()
+
     @PostMapping("/subscription/update")
     @ResponseStatus(HttpStatus.CREATED)
     fun updatePlan(@RequestBody request: UpdateSubscriptionDTO) =

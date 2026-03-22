@@ -13,6 +13,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CommonEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.ExternalProvider
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStatusEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
@@ -140,6 +141,9 @@ class PaymentService(
             ?: throw IllegalStateException("Preço não encontrado para o plano $planType")
 
         stripeClient.updateSubscriptionPrice(subscriptionId, subscriptionItemId, newPriceId)
+        
+        user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.ACTIVE
+        userRepository.save(user)
     }
 
     fun cancelSubscription(immediate: Boolean) {
@@ -153,9 +157,30 @@ class PaymentService(
 
         if (immediate) {
             stripeClient.deleteSubscriptionImmediately(subscriptionId)
+            user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.INACTIVE
         } else {
             stripeClient.cancelAtPeriodEnd(subscriptionId, true)
+            user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.CANCELED_AT_PERIOD_END
         }
+        
+        userRepository.save(user)
+    }
+
+    fun reactivateSubscription() {
+        val user = userService.getUserByContext()
+
+        val externalUser = externalUserRepository.findByUserId(user.id!!)
+            ?: throw IllegalArgumentException("Usuário externo não encontrado")
+
+        val subscriptionId = externalUser.subscriptionId
+            ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
+
+        stripeClient.cancelAtPeriodEnd(subscriptionId, false)
+        
+        user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.ACTIVE
+        userRepository.save(user)
+        
+        log.info("Assinatura reativada com sucesso para o usuário ${user.id}")
     }
 
     fun getPlans() =
@@ -180,16 +205,11 @@ class PaymentService(
         }
 
     private fun saveExternalUser(request: SubscriptionDTO, userId: Long) {
-        val externalProvider: ExternalProvider? = Arrays.stream(ExternalProvider.entries.toTypedArray())
-            .filter { provider -> provider.name == ExternalProvider.PAYPAL.name }
-            .findFirst()
-            .orElseThrow { IllegalArgumentException("Invalid external provider") }
-
-        val externalUser: ExternalUser = ExternalUser(
+        val externalUser = ExternalUser(
             subscriptionId = request.subscriptionId,
             externalUserId = request.externalUserId,
             externalUserEmail = request.payer.externalEmailAddress,
-            externalProvider = ExternalProvider.PAYPAL,
+            externalProvider = ExternalProvider.STRIPE,
             userId = userId,
             audit = Audit()
         )
