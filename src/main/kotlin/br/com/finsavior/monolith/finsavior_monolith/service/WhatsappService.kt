@@ -33,6 +33,7 @@ class WhatsappService(
 
     private val markdownImageRegex: Pattern = Pattern.compile("!\\[.*?\\]\\((https?://[^\\s)]+)\\)")
     
+    // Armazena a última vez que o usuário foi avisado sobre a cota excedida
     private val lastWarningSentMap = ConcurrentHashMap<Long, LocalDateTime>()
 
     companion object {
@@ -46,6 +47,14 @@ class WhatsappService(
             validateWhatsappQuota(user)
             whatsappMessageHistoryRepository.save(WhatsappMessageHistory(userId = user.id!!))
             
+            // Verifica se é a primeira interação da vida do usuário no WhatsApp
+            val isFirstInteraction = whatsappMessageHistoryRepository.countByUserId(user.id!!) == 1L
+            if (isFirstInteraction) {
+                sendWelcomeMessage(from)
+                delay(1500L) // Pausa dramática e natural antes da IA responder ao comando real
+            }
+
+            // Autentica o usuário no contexto atual para que as MCP Tools funcionem corretamente
             authenticateUserInContext(user)
 
             val request = AiChatRequest(question = body, isUsingCoins = false)
@@ -82,6 +91,8 @@ class WhatsappService(
             }
 
             logger.info { "Audio from $from transcribed to: '$transcribedText'" }
+            
+            // A quota será consumida novamente dentro de processIncomingMessage, então não salvaremos aqui.
             processIncomingMessage(from, transcribedText)
 
         } catch (e: WhatsappSilentException) {
@@ -93,6 +104,22 @@ class WhatsappService(
             logger.error(e) { "Error processing audio from $from" }
             twilioService.sendMessage(from, "Desculpe, ocorreu um erro ao processar seu áudio. Tente novamente mais tarde.")
         }
+    }
+
+    private fun sendWelcomeMessage(to: String) {
+        val welcomeMsg = """
+            Oi! 👋 Que bom ter você no FinSavior. Eu sou a Savi, sua assistente financeira inteligente! 💜
+
+            Estou aqui para deixar o controle do seu dinheiro super simples. Você pode conversar comigo como se fosse uma amiga. Olha só alguns exemplos do que você pode me mandar:
+
+            🍕 'Gastei 45 reais no iFood'
+            💰 'Recebi 1500 de salário'
+            📊 'Qual é o meu saldo deste mês?'
+
+            Me conta: o que vamos registrar hoje?
+        """.trimIndent()
+
+        twilioService.sendMessage(to, welcomeMsg)
     }
 
     private fun authenticateUserInContext(user: User) {

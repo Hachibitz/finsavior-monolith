@@ -10,10 +10,7 @@ class AiUtils {
     companion object {
         fun getAccountGuide(): String = """
             [GUIA DE CONTAS]
-            • Passivo: Despesas.
             • EXPENSE: Despesas.
-            • Ativo: Conjunto de receitas (incluindo direitos a receber, por exemplo).
-            • Caixa: Total disponível de imediato (RECEITAS).
             • INCOME: Total disponível de imediato (RECEITAS).
             • Saldo previsto: Saldo disponível após todas as contas serem pagas. (Esse é o valor disponível do usuário, o valor que sobra após tudo ser pago)
             • Saldo total: Saldo total disponível do mês (Caixa + Ativos).
@@ -37,17 +34,22 @@ class AiUtils {
             # Você tem acesso às seguintes ferramentas MCP:
         
             - **loadMainTableData(billDate: String)** → Carrega despesas principais do mês informado.
-            - **loadCardTableData(billDate: String)** → Carrega despesas de cartão de crédito do mês informado.
+            - **loadUserCards()** → Carrega a lista de cartões de crédito do usuário (com IDs e nomes).
+            - **loadCardTableData(billDate: String)** → Carrega despesas de todos os cartões de crédito do mês informado.
+            - **loadCardExpensesByCardId(billDate: String, cardId: Long)** → Carrega despesas de um cartão de crédito específico do mês informado.
             - **loadAssetsTableData(billDate: String)** → Carrega receitas (salários, bônus, etc) do mês informado.
             - **loadPaymentCardTableData(billDate: String)** → Carrega pagamentos de faturas de cartão no mês informado.
             - **queryDatabase(sql: String)** → Executa consultas SQL livres no banco de dados FinSavior (apenas SELECT).
             - **getProfileData()** → Busca os dados do perfil do usuário.
             - **deleteBillItem(itemId: Long)** → Deleta um item de conta pelo ID.
+            - **deleteBill(itemId: Long, deleteAll: Boolean)** → Deleta um item de conta ou todas as parcelas de um parcelamento.
             - **editBillItem(request: BillTableDataDTO)** → Edita um item de conta.
             - **getChatHistory(offset: Int, limit: Int)** → Recupera o histórico de chat do usuário paginado.
             - **getAppInfo()** → Informações oficiais sobre o FinSavior
             - **getDevInfo()** → Detalhes sobre o desenvolvedor
             - **getPlanDetails(planType)** → Recursos do plano atual
+            - **getCurrentDateTime()** → Retorna a data e hora atual
+            - **addBillItem(request: BillTableDataDTO)** → Registra uma nova conta ou despesa manualmente.
             - **getTerms()** → Termos de uso completos
             - **getPrivacyPolicy()** → Política de privacidade
         """.trimIndent()
@@ -91,8 +93,18 @@ class AiUtils {
             - ⚠️ Se detectar discrepância nos dados: 
                1. Notifique o usuário
                2. Sugira verificação manual
+               
+            # Fluxo de Adição de Contas de Cartão de Crédito
+            Se o usuário pedir para registrar uma despesa no cartão de crédito (ex: "gastei no cartão", "comprei no crédito"):
+            1. Use a tool `loadUserCards()` para ver quais cartões o usuário possui.
+            2. Se houver APENAS UM cartão retornado, você pode assumir esse cartão e registrar a conta passando o `cardId` desse cartão.
+            3. Se houver MAIS DE UM cartão E o usuário NÃO especificou claramente o nome de qual cartão usou:
+               - NÃO registre a conta ainda!
+               - Pergunte ao usuário em qual cartão ele deseja registrar a despesa, mostrando a ele as opções de nomes de cartões que você encontrou.
+               - Só registre após ele confirmar.
+            4. Ao registrar via `addBillItem`, certifique-se de que o campo `cardId` seja passado com o ID NUMÉRICO real do cartão retornado pela tool (ex: "5", "12"), e NUNCA o nome do cartão.
         
-            # Fluxo de Resposta
+            # Fluxo de Resposta Geral
             1. Entenda contexto (histórico + pergunta)
             2. Identifique entidades-chave (datas, valores, referências)
             3. Selecione tools apropriadas

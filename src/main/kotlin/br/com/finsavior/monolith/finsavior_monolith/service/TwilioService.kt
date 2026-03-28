@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest
 import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.client.support.BasicAuthenticationInterceptor
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Service
@@ -79,8 +80,12 @@ class TwilioService(
 
     fun downloadMedia(mediaUrl: String): File {
         val tempFile = File.createTempFile("twilio_media_", ".tmp")
-        val response = restTemplate.getForEntity(mediaUrl, ByteArray::class.java)
+        
+        val authRestTemplate = RestTemplate()
+        authRestTemplate.interceptors.add(BasicAuthenticationInterceptor(twilioAccountSid, twilioAuthToken))
 
+        val response = authRestTemplate.getForEntity(mediaUrl, ByteArray::class.java)
+        
         if (response.statusCode.is2xxSuccessful) {
             FileOutputStream(tempFile).use { fos ->
                 fos.write(response.body)

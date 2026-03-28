@@ -47,7 +47,7 @@ class AiChatService(
     private val chatModel: ChatLanguageModel,
     private val mcpToolsConfig: MCPToolsConfig,
     private val fsCoinService: FsCoinService,
-    @Value("\${fscoins-cost-for-chat}") private val coinsCostForMessage: Long
+    @param:Value("\${fscoins-cost-for-chat}") private val coinsCostForMessage: Long
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -224,6 +224,13 @@ class AiChatService(
         val dateGuidelines = getDateGuidelines(currentDate)
         val responseStructure = getResponseStructure()
         val formatOfResponse = getFormatOfResponse()
+        val billTableGuide = """
+            # Guia de Tipo de Conta (billTable)
+            - `CREDIT_CARD`: Se o usuário mencionar "crédito", "cartão", "vencimento", "fatura" ou "parcelado".
+            - `ASSETS`: Se for uma entrada de dinheiro, como "salário", "recebi", "ganhei", "bônus".
+            - `PAYMENT_CARD`: Se for um pagamento de fatura de cartão.
+            - `MAIN`: Para todas as outras despesas.
+        """.trimIndent()
 
         return """
             $saviDescription
@@ -245,6 +252,8 @@ class AiChatService(
             
             # Guia de contas
             "$accountGuide"
+            
+            $billTableGuide
             
             # Pergunta Atual do usuário
             "$question"
