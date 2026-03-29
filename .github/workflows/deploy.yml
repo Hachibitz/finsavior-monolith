@@ -1,0 +1,54 @@
+name: Deploy FinSavior Monolith
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+
+      - name: Build Monolith
+        run: |
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      - name: Copy JARs and Docker files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # Copia apenas os arquivos deste repositório
+          source: "build/libs/*-SNAPSHOT.jar,docker-compose.yml,Dockerfile"
+          target: "/root/finsavior/backend/finsavior-monolith"
+          strip_components: 0
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "Iniciando o Deploy do Monolito na VPS..."
+            cd /root/finsavior/backend/finsavior-monolith
+            
+            # Recria a imagem e o contêiner APENAS do monolito
+            docker compose up -d --build monolith
+            
+            echo "Limpando imagens antigas para economizar disco..."
+            docker image prune -f
+            
+            echo "Deploy concluído com sucesso!"

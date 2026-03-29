@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  config-server:
+    build: ../finsavior-config-server
+    container_name: finsavior-config-server
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8084:8084"
+    environment:
+      - TOKEN=${CONFIG_SERVER_TOKEN}
+    networks:
+      - finsavior-net
+
+  monolith:
+    build: .
+    container_name: finsavior-monolith
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Expõe a porta 8085 para o host (apenas localhost), assim o Nginx do CloudPanel consegue fazer o proxy.
+      - "127.0.0.1:8085:8085" 
+    environment:
+      # O monolith agora chama o config-server pela rede interna do Docker
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:8084
+      - SPRING_PROFILES_ACTIVE=prod
+      
+      # Variaveis customizadas do app FinSavior
+      - FINSAVIOR_ACTIVE_PROFILE=prod
+      - FINSAVIOR_HOST_URL=https://www.finsavior.com.br
+      - ALLOWED_ORIGINS=https://localhost,https://www.finsavior.com.br
+      
+      # Banco de dados
+      # - SPRING_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/finsavior
+      # - SPRING_DATASOURCE_USERNAME=seu_usuario
+      # - SPRING_DATASOURCE_PASSWORD=sua_senha
+    depends_on:
+      - config-server
+    networks:
+      - finsavior-net
+
+networks:
+  finsavior-net:
+    driver: bridge
