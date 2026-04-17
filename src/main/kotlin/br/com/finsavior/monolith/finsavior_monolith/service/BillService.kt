@@ -17,6 +17,8 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepo
 import br.com.finsavior.monolith.finsavior_monolith.repository.InstallmentRepository
 import mu.KLogger
 import mu.KotlinLogging
+import org.springframework.cache.CacheManager
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -24,13 +26,15 @@ import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class BillService(
     private val billTableDataRepository: BillTableDataRepository,
     private val userService: UserService,
     private val aiAdviceRepository: AiAdviceRepository,
-    private val installmentRepository: InstallmentRepository
+    private val installmentRepository: InstallmentRepository,
+    private val cacheManager: CacheManager
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -48,7 +52,9 @@ class BillService(
         )
 
         try {
-            return saveRegister(enrichedRequest)
+            val resultId = saveRegister(enrichedRequest)
+            evictUserCaches(user.id!!)
+            return resultId
         } catch (e: Exception) {
             log.error("Falha ao salvar o registro: ${e.message}")
             throw BillRegisterException("Erro ao salvar o registro: ${e.message}", e)
@@ -57,6 +63,7 @@ class BillService(
 
     @Transactional
     fun billUpdate(billTableDataDTO: BillTableDataDTO) {
+        val user = userService.getUserByContext()
         try {
             val id = billTableDataDTO.id ?: throw IllegalArgumentException("ID não informado")
             val existingRecord = billTableDataRepository.findById(id).orElseThrow {
@@ -75,12 +82,14 @@ class BillService(
                 audit?.updateId = CommonEnum.APP_ID.name
             }
             billTableDataRepository.save(existingRecord)
+            evictUserCaches(user.id!!)
         } catch (e: Exception) {
             log.error("Falha ao editar item da tabela principal: ${e.message}")
             throw BillRegisterException("Erro ao editar item da tabela principal: ${e.message}", e)
         }
     }
 
+    @Cacheable(value = ["mainTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
             billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
                 userService.getUserByContext().id!!,
@@ -88,6 +97,7 @@ class BillService(
                 BillTableEnum.MAIN
             ).map { it.toBillTableDataDTO() }
 
+    @Cacheable(value = ["cardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
             userService.getUserByContext().id!!,
@@ -95,6 +105,7 @@ class BillService(
             BillTableEnum.CREDIT_CARD
         ).map { it.toBillTableDataDTO() }
 
+    @Cacheable(value = ["cardExpenses"], key = "@userService.getUserByContext().id + '-' + #billDate + '-' + #cardId")
     fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
             userService.getUserByContext().id!!,
@@ -103,6 +114,7 @@ class BillService(
             cardId.toString()
         ).map { it.toBillTableDataDTO() }
 
+    @Cacheable(value = ["assetsTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
             userService.getUserByContext().id!!,
@@ -110,6 +122,7 @@ class BillService(
             BillTableEnum.ASSETS
         ).map { it.toBillTableDataDTO() }
 
+    @Cacheable(value = ["paymentCardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadPaymentCardTableData(billDate: String): List<BillTableDataDTO> =
         billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
             userService.getUserByContext().id!!,
@@ -119,6 +132,7 @@ class BillService(
 
     @Transactional
     fun deleteItem(itemId: Long, deleteAll: Boolean) {
+        val user = userService.getUserByContext()
         val bill = billTableDataRepository.findById(itemId)
             .orElseThrow { IllegalArgumentException("Registro não encontrado") }
 
@@ -127,16 +141,22 @@ class BillService(
         } else {
             billTableDataRepository.delete(bill)
         }
+        evictUserCaches(user.id!!)
     }
 
-    fun deleteItemFromTable(itemId: Long) =
+    @Transactional
+    fun deleteItemFromTable(itemId: Long) {
+        val user = userService.getUserByContext()
         billTableDataRepository.deleteById(itemId)
+        evictUserCaches(user.id!!)
+    }
 
     @Transactional
     fun deleteAllUserData(userId: Long) {
         try {
             billTableDataRepository.deleteByUserId(userId)
             aiAdviceRepository.deleteByUserId(userId)
+            evictUserCaches(userId)
         } catch (e: Exception) {
             log.error("Falha ao deletar dados do usuário: ${e.message}")
             throw DeleteUserException(e.message?:"Erro ao deletar dados do usuário")
@@ -156,7 +176,21 @@ class BillService(
             )
             saveRegister(enrichedRequest)
         }
+        evictUserCaches(user.id!!)
         log.info("Lote de ${requests.size} contas importado com sucesso para o usuário ${user.id}")
+    }
+
+    private fun evictUserCaches(userId: Long) {
+        log.warn { "Evicting user caches for user $userId" }
+        val caches = listOf("mainTable", "cardTable", "cardExpenses", "assetsTable", "paymentCardTable")
+        for (cacheName in caches) {
+            val cache = cacheManager.getCache(cacheName)
+            if (cache != null && cache.nativeCache is ConcurrentHashMap<*, *>) {
+                val nativeCache = cache.nativeCache as ConcurrentHashMap<Any, Any>
+                val keysToRemove = nativeCache.keys.filter { it.toString().startsWith("$userId-") }
+                keysToRemove.forEach { nativeCache.remove(it) }
+            }
+        }
     }
 
     private fun validateBillTable(billTable: String?): Boolean {
