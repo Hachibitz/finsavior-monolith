@@ -181,7 +181,6 @@ class BillService(
     }
 
     private fun evictUserCaches(userId: Long) {
-        log.warn { "Evicting user caches for user $userId" }
         val caches = listOf("mainTable", "cardTable", "cardExpenses", "assetsTable", "paymentCardTable")
         for (cacheName in caches) {
             val cache = cacheManager.getCache(cacheName)
