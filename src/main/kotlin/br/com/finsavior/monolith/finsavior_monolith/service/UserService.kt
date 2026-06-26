@@ -53,6 +53,7 @@ class UserService(
 
     companion object {
         const val MAX_PROFILE_IMAGE_SIZE_KB = 5120L
+        private val ALLOWED_IMAGE_CONTENT_TYPES = setOf("image/jpeg", "image/png", "image/webp")
     }
 
     fun getUserByContext(): User {
@@ -80,18 +81,53 @@ class UserService(
     }
 
     fun uploadProfilePicture(profileData: MultipartFile) {
-        if ((profileData.size / 1024) > MAX_PROFILE_IMAGE_SIZE_KB) {
-            throw ProfileChangeException("Tamanho máximo do arquivo excedido: 5MB", HttpStatus.BAD_REQUEST)
-        }
+        validateProfileImage(profileData)
 
         try {
             val user: User = getUserByContext()
             user.userProfile!!.profilePicture = profileData.bytes
             userRepository.save(user)
+        } catch (e: ProfileChangeException) {
+            throw e
         } catch (e: Exception) {
             log.error("Failed to save file: ${e.message}")
             throw ProfileChangeException("Failed to save file: ${e.message}", HttpStatus.INTERNAL_SERVER_ERROR)
         }
+    }
+
+    /**
+     * Validates an uploaded profile image: bounds the size, checks the declared
+     * content type, and verifies the actual file signature (magic bytes) so a
+     * non-image (or disguised) payload cannot be stored.
+     */
+    private fun validateProfileImage(file: MultipartFile) {
+        if (file.isEmpty) {
+            throw ProfileChangeException("Arquivo de imagem vazio", HttpStatus.BAD_REQUEST)
+        }
+        if ((file.size / 1024) > MAX_PROFILE_IMAGE_SIZE_KB) {
+            throw ProfileChangeException("Tamanho máximo do arquivo excedido: 5MB", HttpStatus.BAD_REQUEST)
+        }
+        val contentType = file.contentType?.lowercase()
+        if (contentType == null || contentType !in ALLOWED_IMAGE_CONTENT_TYPES) {
+            throw ProfileChangeException("Formato de imagem inválido. Use JPEG, PNG ou WEBP.", HttpStatus.BAD_REQUEST)
+        }
+        if (!hasValidImageSignature(file.bytes)) {
+            throw ProfileChangeException("Arquivo de imagem inválido ou corrompido.", HttpStatus.BAD_REQUEST)
+        }
+    }
+
+    private fun hasValidImageSignature(bytes: ByteArray): Boolean {
+        if (bytes.size < 12) return false
+        fun u(i: Int) = bytes[i].toInt() and 0xFF
+        // JPEG: FF D8 FF
+        val isJpeg = u(0) == 0xFF && u(1) == 0xD8 && u(2) == 0xFF
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        val isPng = u(0) == 0x89 && u(1) == 0x50 && u(2) == 0x4E && u(3) == 0x47 &&
+                u(4) == 0x0D && u(5) == 0x0A && u(6) == 0x1A && u(7) == 0x0A
+        // WEBP: "RIFF"...."WEBP"
+        val isWebp = u(0) == 0x52 && u(1) == 0x49 && u(2) == 0x46 && u(3) == 0x46 &&
+                u(8) == 0x57 && u(9) == 0x45 && u(10) == 0x42 && u(11) == 0x50
+        return isJpeg || isPng || isWebp
     }
 
     fun getProfileData(): ProfileDataDTO {

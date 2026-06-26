@@ -2,6 +2,13 @@ package br.com.finsavior.monolith.finsavior_monolith.model.mapper
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
+import java.time.LocalDate
+
+private fun parsePurchaseDate(value: String?): LocalDate? {
+    if (value.isNullOrBlank()) return null
+    val normalized = value.trim().substringBefore('T')
+    return runCatching { LocalDate.parse(normalized) }.getOrNull()
+}
 
 fun BillTableDataDTO.toTableData(): BillTableData =
     BillTableData(
@@ -17,10 +24,12 @@ fun BillTableDataDTO.toTableData(): BillTableData =
         totalInstallments = this.installmentCount,
         currentInstallment = this.currentInstallment,
         isInstallment = this.isInstallment,
+        isRecurrent = this.isRecurrent,
         entryMethod = this.entryMethod,
         billTable = this.billTable,
         paymentType = this.paymentType,
         cardId = this.cardId,
+        purchaseDate = parsePurchaseDate(this.purchaseDate),
     )
 
 fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
@@ -37,8 +46,11 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         installmentCount = this.totalInstallments,
         currentInstallment = this.currentInstallment,
         isInstallment = this.isInstallment,
+        isRecurrent = this.isRecurrent,
         entryMethod = this.entryMethod,
         billTable = this.billTable,
         paymentType = this.paymentType,
         cardId = this.cardId,
+        purchaseDate = this.purchaseDate?.toString(),
+        fixedBillId = this.fixedBill?.id,
     )

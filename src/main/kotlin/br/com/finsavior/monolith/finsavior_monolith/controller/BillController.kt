@@ -61,7 +61,7 @@ class BillController(
 
     @PutMapping("/edit")
     @ResponseStatus(HttpStatus.CREATED)
-    fun editItemFromCardTable(@RequestBody billTableDataDTO: BillTableDataDTO) =
+    fun editItemFromCardTable(@Valid @RequestBody billTableDataDTO: BillTableDataDTO) =
         service.billUpdate(billTableDataDTO)
 
     @PostMapping("/batch-register")

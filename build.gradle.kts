@@ -46,6 +46,8 @@ dependencies {
 	implementation("org.springframework.cloud:spring-cloud-starter-bootstrap:$cloudStarterBootstrapVersion")
 	implementation("io.github.microutils:kotlin-logging:$kotlinLoggingVersion")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
+	implementation("org.springframework.boot:spring-boot-starter-cache")
+	implementation("com.github.ben-manes.caffeine:caffeine")
 	implementation("io.jsonwebtoken:jjwt:$jwtVersion")
 	implementation("com.mysql:mysql-connector-j:$mySqlConnectorVersion")
 	implementation("org.springframework.boot:spring-boot-starter-mail")
