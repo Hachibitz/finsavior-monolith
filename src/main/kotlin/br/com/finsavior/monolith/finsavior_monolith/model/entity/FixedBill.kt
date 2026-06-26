@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.model.entity
 
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.FixedBillGenerationStrategyEnum
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
@@ -75,6 +76,10 @@ class FixedBill(
     /** First billing month this fixed bill was created for, e.g. "Jun 2026". */
     @Column(name = "start_bill_date", length = 20)
     var startBillDate: String,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "generation_strategy", nullable = false, length = 30)
+    var generationStrategy: FixedBillGenerationStrategyEnum = FixedBillGenerationStrategyEnum.YEARLY_UPFRONT,
 
     @Column(name = "active", nullable = false)
     var active: Boolean = true,

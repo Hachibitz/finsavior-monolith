@@ -3,6 +3,7 @@ package br.com.finsavior.monolith.finsavior_monolith.model.dto
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillEntryMethodEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.FixedBillGenerationStrategyEnum
 import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Digits
@@ -46,6 +47,7 @@ data class BillTableDataDTO (
     /** Real purchase/bill date in ISO format (yyyy-MM-dd). Optional. */
     @field:Size(max = 10, message = "Data de compra inválida")
     var purchaseDate: String? = null,
+    var fixedBillGenerationStrategy: FixedBillGenerationStrategyEnum? = null,
     /** Read-only: id of the parent fixed bill, when this row is a recurring instance. */
     var fixedBillId: Long? = null,
 )

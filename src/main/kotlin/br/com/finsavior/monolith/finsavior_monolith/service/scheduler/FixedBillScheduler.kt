@@ -14,14 +14,26 @@ class FixedBillScheduler(
     private val log: KLogger = KotlinLogging.logger {}
 
     /**
-     * Runs daily at 03:00. The underlying generation is idempotent, so a daily
-     * cadence safely covers month rollovers and any missed runs after restarts.
+     * Annual strategy: materializes all months from January through December.
+     * Runs at 00:00 on January 1st and is idempotent.
      */
-    @Scheduled(cron = "0 0 3 * * *")
-    fun generateFixedBills() {
-        log.info("Iniciando geração agendada de contas fixas")
-        runCatching { fixedBillService.generateUpcomingInstancesForAllActive() }
-            .onFailure { log.error("Falha na geração agendada de contas fixas: ${it.message}", it) }
-        log.info("Geração agendada de contas fixas finalizada")
+    @Scheduled(cron = "0 0 0 1 1 *")
+    fun generateYearlyFixedBills() {
+        log.info("Iniciando geração anual de contas fixas")
+        runCatching { fixedBillService.generateYearlyInstancesForActiveBills() }
+            .onFailure { log.error("Falha na geração anual de contas fixas: ${it.message}", it) }
+        log.info("Geração anual de contas fixas finalizada")
+    }
+
+    /**
+     * Monthly strategy: materializes only the current month. Runs at 00:00 on the
+     * 1st day of every month and is idempotent.
+     */
+    @Scheduled(cron = "0 0 0 1 * *")
+    fun generateMonthlyFixedBills() {
+        log.info("Iniciando geração mensal de contas fixas")
+        runCatching { fixedBillService.generateCurrentMonthInstancesForActiveMonthlyBills() }
+            .onFailure { log.error("Falha na geração mensal de contas fixas: ${it.message}", it) }
+        log.info("Geração mensal de contas fixas finalizada")
     }
 }

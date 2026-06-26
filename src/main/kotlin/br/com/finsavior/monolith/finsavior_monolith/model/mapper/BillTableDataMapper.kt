@@ -52,5 +52,6 @@ fun BillTableData.toBillTableDataDTO(): BillTableDataDTO =
         paymentType = this.paymentType,
         cardId = this.cardId,
         purchaseDate = this.purchaseDate?.toString(),
+        fixedBillGenerationStrategy = this.fixedBill?.generationStrategy,
         fixedBillId = this.fixedBill?.id,
     )
