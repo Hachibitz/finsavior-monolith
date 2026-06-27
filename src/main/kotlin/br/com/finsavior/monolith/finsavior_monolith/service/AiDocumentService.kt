@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiProcessDocumentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.DocumentProcessingHistory
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
@@ -32,7 +33,6 @@ class AiDocumentService(
     private val documentProcessingHistoryRepository: DocumentProcessingHistoryRepository,
 ) {
     companion object {
-        private const val OPEN_AI_CHAT_API_URL = "https://api.openai.com/v1/chat/completions"
         private const val PDF_PASSWORD_ERROR = "PASSWORD_REQUIRED"
         private const val SYSTEM_PROMPT = "Você é um contador experiente. Sua tarefa é converter extratos brutos em JSON estruturado."
     }
@@ -178,7 +178,7 @@ class AiDocumentService(
     }
 
     private fun buildRequestBody(prompt: String): Map<String, Any> = mapOf(
-        "model" to "gpt-4o-mini",
+        "model" to OpenAiModelConfig.DEFAULT_CHAT_MODEL,
         "messages" to listOf(
             mapOf("role" to "system", "content" to SYSTEM_PROMPT),
             mapOf("role" to "user", "content" to prompt)
@@ -193,7 +193,7 @@ class AiDocumentService(
         val requestEntity = HttpEntity(requestBody, headers)
 
         return runCatching {
-            restTemplate.postForEntity(OPEN_AI_CHAT_API_URL, requestEntity, Map::class.java)
+            restTemplate.postForEntity(OpenAiModelConfig.CHAT_COMPLETIONS_API_URL, requestEntity, Map::class.java)
         }.getOrElse { ex ->
             log.error(ex) { "Error calling OpenAI API" }
             throw AiProcessDocumentException("Erro ao comunicar-se com o serviço de IA.")

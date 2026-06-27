@@ -3,6 +3,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.exception.GoalNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.GoalAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Goal
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.GoalAdviceHistory
@@ -16,7 +17,6 @@ import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
 import dev.langchain4j.model.openai.OpenAiChatModel
-import dev.langchain4j.model.openai.OpenAiChatModelName
 import dev.langchain4j.service.AiServices
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -43,7 +43,7 @@ class GoalAiService(
 
         val chatModel = OpenAiChatModel.builder()
             .apiKey(openAiApiKey)
-            .modelName(OpenAiChatModelName.GPT_4_O_MINI)
+            .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.7)
             .build()
 
