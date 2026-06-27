@@ -104,13 +104,6 @@ class AiAdviceService(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature((if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature).toDouble())
-            .maxTokens(
-                when (analysisType) {
-                    AnalysisTypeEnum.TRIMESTER -> 4500
-                    AnalysisTypeEnum.ANNUAL -> 9000
-                    else -> 2000
-                }
-            )
             .build()
 
         val aiService = AiServices
@@ -418,7 +411,6 @@ class AiAdviceService(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.2)
-            .maxTokens(100)
             .build()
 
         val aiService = AiServices

@@ -17,7 +17,6 @@ class LangChainAiChatModelConfig(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.2)
-            .maxTokens(2000)
             .logRequests(false)
             .logResponses(false)
             .build()
