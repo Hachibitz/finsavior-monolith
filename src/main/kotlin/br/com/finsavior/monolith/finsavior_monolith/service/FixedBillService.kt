@@ -2,11 +2,11 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.BillRegisterException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
-import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
-import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.FixedBill
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.FixedBillGenerationStrategyEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toBillTableData
+import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toFixedBill
 import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.FixedBillRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.BillDateUtils
@@ -14,7 +14,6 @@ import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDate
 
 /**
  * Owns the lifecycle of recurring ("fixed") bills. A [FixedBill] template is
@@ -35,27 +34,10 @@ class FixedBillService(
     @Transactional
     fun createFixedBill(request: BillTableDataDTO, user: User): Long {
         val startBillDate = request.billDate
-        val dayOfMonth = parseDayOfMonth(request.purchaseDate)
         val generationStrategy = request.fixedBillGenerationStrategy
             ?: FixedBillGenerationStrategyEnum.YEARLY_UPFRONT
 
-        val fixedBill = FixedBill(
-            user = user,
-            billName = request.billName,
-            billValue = request.billValue,
-            billDescription = request.billDescription,
-            billCategory = request.billCategory,
-            billType = request.billType,
-            billTable = request.billTable,
-            paymentType = request.paymentType,
-            cardId = request.cardId,
-            dayOfMonth = dayOfMonth,
-            startBillDate = startBillDate,
-            generationStrategy = generationStrategy,
-            active = true,
-            audit = Audit()
-        )
-        val savedFixedBill = fixedBillRepository.save(fixedBill)
+        val savedFixedBill = fixedBillRepository.save(request.toFixedBill(user))
 
         var firstId: Long? = null
         val initialMonths = when (generationStrategy) {
@@ -66,7 +48,7 @@ class FixedBillService(
         }
 
         initialMonths.forEach { billDate ->
-            val saved = billTableDataRepository.save(buildInstance(savedFixedBill, billDate))
+            val saved = billTableDataRepository.save(savedFixedBill.toBillTableData(billDate))
             if (firstId == null) firstId = saved.id
         }
 
@@ -117,40 +99,12 @@ class FixedBillService(
             if (missingMonths.isEmpty()) return@forEach
 
             missingMonths.forEach { billDate ->
-                billTableDataRepository.save(buildInstance(fixedBill, billDate))
+                billTableDataRepository.save(fixedBill.toBillTableData(billDate))
             }
             fixedBill.user.id?.let { affectedUserIds.add(it) }
             log.info("Conta fixa ${fixedBill.id}: geradas ${missingMonths.size} instância(s) para ${missingMonths}")
         }
 
         affectedUserIds.forEach { billCacheService.evictUserCaches(it) }
-    }
-
-    private fun buildInstance(fixedBill: FixedBill, billDate: String): BillTableData {
-        val purchaseDate: LocalDate? = BillDateUtils.purchaseDateFor(billDate, fixedBill.dayOfMonth)
-        return BillTableData(
-            id = 0,
-            userId = fixedBill.user.id!!,
-            billType = fixedBill.billType,
-            billDate = billDate,
-            billName = fixedBill.billName,
-            billValue = fixedBill.billValue,
-            billDescription = fixedBill.billDescription,
-            billTable = fixedBill.billTable,
-            billCategory = fixedBill.billCategory,
-            isPaid = false,
-            isRecurrent = true,
-            paymentType = fixedBill.paymentType,
-            cardId = fixedBill.cardId,
-            fixedBill = fixedBill,
-            purchaseDate = purchaseDate,
-            audit = Audit()
-        )
-    }
-
-    private fun parseDayOfMonth(purchaseDate: String?): Int? {
-        if (purchaseDate.isNullOrBlank()) return null
-        val normalized = purchaseDate.trim().substringBefore('T')
-        return runCatching { LocalDate.parse(normalized).dayOfMonth }.getOrNull()
     }
 }
