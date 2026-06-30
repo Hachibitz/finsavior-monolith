@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatRequest
@@ -52,18 +53,17 @@ class AiChatService(
 
     private val log: KLogger = KotlinLogging.logger {}
 
-    fun askQuestion(prompt: String): Response<AiMessage> {
-        log.info("Asking question to Savi Assistant")
-        val userId = userService.getUserByContext().id!!
+    fun askQuestion(userId: Long, question: String): Response<AiMessage> {
+        log.info("Asking question to Savi Assistant for user {}", userId)
 
         val aiServices = AiServices
             .builder(SaviAssistant::class.java)
-            .maxSequentialToolsInvocations(5)
+            .maxSequentialToolsInvocations(OpenAiModelConfig.CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS)
             .chatLanguageModel(chatModel)
             .tools(mcpToolsConfig)
             .build()
 
-        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, prompt)
+        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, question)
 
         return try {
             aiServices.chat(messages)
@@ -78,7 +78,7 @@ class AiChatService(
         val user = userService.getUserByContext()
         val userId = user.id!!
 
-        if(request.isUsingCoins != null && request.isUsingCoins) {
+        if (request.isUsingCoins != null && request.isUsingCoins) {
             val fsCoinBalance = fsCoinService.getBalance(user.id)
             validateUsingCoins(user.id!!, fsCoinBalance)
             useCoinsForChat(user.id!!, fsCoinBalance)
@@ -86,12 +86,16 @@ class AiChatService(
             validatePlanCoverage(user)
         }
 
-        val prompt = buildPrompt(userId, request.question)
-        val chatResponse = askQuestion(prompt)
+        val question = truncateText(request.question.trim(), OpenAiModelConfig.CHAT_QUESTION_MAX_CHARS)
+        if (question.isBlank()) {
+            throw ChatbotException("Pergunta inválida.")
+        }
+
+        val chatResponse = askQuestion(userId, question)
         val answer = chatResponse.content().text()
 
         val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
-        val savedMessage = saveChatMessage(user, request, answer!!)
+        val savedMessage = saveChatMessage(user, question, answer!!)
         saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!)
 
         return ResponseEntity.ok(AiChatResponse(answer))
@@ -110,33 +114,83 @@ class AiChatService(
         return ResponseEntity.noContent().build()
     }
 
-    fun getUserChatHistoryDTO(userId: Long, offset: Int, limit: Int) =
+    fun getUserChatHistoryDTO(userId: Long, offset: Int, limit: Int): List<ChatMessageDTO> =
         chatMessageRepository
             .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(offset / limit, limit))
+            .asReversed()
             .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
 
-    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, prompt: String): List<ChatMessage> {
-        val systemMessage = SystemMessage.from("""
-            Você é a Savi, assistente financeira. 
-            Use as ferramentas MCP sempre que precisar de dados.
-            NÃO explique que vai usar as ferramentas, apenas use-as silenciosamente.
-            Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
-        """.trimIndent())
+    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, question: String): List<ChatMessage> {
+        val systemMessage = buildChatSystemMessage(userId)
 
-        val historyMessages = getUserChatHistoryDTO(userId, 0, 20).flatMap { e ->
-            listOf(
-                UserMessage(e.userMessage),
-                AiMessage.builder().text(e.assistantResponse).build()
-            )
-        }
+        val historyMessages = getUserChatHistoryDTO(userId, 0, OpenAiModelConfig.CHAT_HISTORY_EXCHANGES)
+            .flatMap { entry ->
+                listOf(
+                    UserMessage.from(truncateText(entry.userMessage, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS)),
+                    AiMessage.builder()
+                        .text(truncateText(entry.assistantResponse, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS))
+                        .build()
+                )
+            }
 
-        return listOf(systemMessage) + historyMessages + UserMessage.from(prompt)
+        return listOf(systemMessage) + historyMessages + UserMessage.from(question)
     }
 
-    private fun saveChatMessage(user: User, request: AiChatRequest, aiAnswer: String): ChatMessageEntity {
+    private fun buildChatSystemMessage(userId: Long): SystemMessage {
+        val currentDate = LocalDateTime.now()
+        val billTableGuide = """
+            # Guia de Tipo de Conta (billTable)
+            - `CREDIT_CARD`: crédito, cartão, fatura ou parcelado.
+            - `ASSETS`: salário, recebimentos, bônus.
+            - `PAYMENT_CARD`: pagamento de fatura de cartão.
+            - `MAIN`: demais despesas.
+        """.trimIndent()
+
+        return SystemMessage.from(
+            """
+            Você é a Savi, assistente financeira do FinSavior.
+            Use as ferramentas MCP quando precisar de dados.
+            NÃO explique que vai usar ferramentas, apenas use-as silenciosamente.
+            Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
+
+            ${getSaviDescription()}
+
+            ${getMcpToolsDescription()}
+
+            ${getFallbackRules(userId)}
+
+            ${getSearchingDataStrategy(userId)}
+
+            ${getResponseGuidelines()}
+
+            ${getDateGuidelines(currentDate)}
+
+            ${getResponseStructure()}
+
+            ${getFormatOfResponse()}
+
+            # Id do usuário para uso no MCP Tools
+            $userId
+
+            # Guia de contas
+            ${getAccountGuide()}
+
+            $billTableGuide
+            """.trimIndent()
+        )
+    }
+
+    private fun truncateText(value: String, maxChars: Int): String =
+        if (value.length <= maxChars) value else value.take(maxChars - 1) + "…"
+
+    private fun saveChatMessage(
+        user: User,
+        question: String,
+        aiAnswer: String
+    ): ChatMessageEntity {
         val message = ChatMessageEntity(
             userId = user.id!!,
-            userMessage = request.question,
+            userMessage = question,
             assistantResponse = aiAnswer,
             createdAt = LocalDateTime.now()
         )
@@ -207,59 +261,5 @@ class AiChatService(
         val totalTokensUsed = messages.sumOf { it.tokensUsed }
 
         return totalTokensUsed < planType!!.maxTokensPerMonth
-    }
-
-    private fun buildPrompt(
-        userId: Long,
-        question: String
-    ): String {
-        log.info("Building prompt for user: $userId with question: $question")
-        val currentDate = LocalDateTime.now()
-        val accountGuide = getAccountGuide()
-        val saviDescription = getSaviDescription()
-        val mcpToolsDescription = getMcpToolsDescription()
-        val fallbackRules = getFallbackRules(userId)
-        val dataSearchingStrategy = getSearchingDataStrategy(userId)
-        val responseGuidelines = getResponseGuidelines()
-        val dateGuidelines = getDateGuidelines(currentDate)
-        val responseStructure = getResponseStructure()
-        val formatOfResponse = getFormatOfResponse()
-        val billTableGuide = """
-            # Guia de Tipo de Conta (billTable)
-            - `CREDIT_CARD`: Se o usuário mencionar "crédito", "cartão", "vencimento", "fatura" ou "parcelado".
-            - `ASSETS`: Se for uma entrada de dinheiro, como "salário", "recebi", "ganhei", "bônus".
-            - `PAYMENT_CARD`: Se for um pagamento de fatura de cartão.
-            - `MAIN`: Para todas as outras despesas.
-        """.trimIndent()
-
-        return """
-            $saviDescription
-            
-            $mcpToolsDescription
-            
-            $fallbackRules
-            
-            $dataSearchingStrategy
-        
-            $responseGuidelines
-            
-            $dateGuidelines
-            
-            $responseStructure
-            
-            # Id do usuário para uso no MCP Tools
-            "$userId"
-            
-            # Guia de contas
-            "$accountGuide"
-            
-            $billTableGuide
-            
-            # Pergunta Atual do usuário
-            "$question"
-            
-            # Formato da Resposta
-            $formatOfResponse
-        """.trimIndent()
     }
 }
