@@ -1,18 +1,22 @@
 -- Migrates legacy recurring bills from bill_table_data.is_recurrent to the
 -- fixed_bill template model introduced in release-2.0.0.
 --
+-- IMPORTANT (DBeaver / manual execution):
+-- Run the ENTIRE script at once (Execute SQL Script / Alt+X).
+-- Do NOT run individual statements with Ctrl+Enter — staging tables are session-scoped.
+--
 -- Assumptions:
 -- 1. Hibernate has already created the fixed_bill table and fixed_bill_id column.
--- 2. Legacy recurring rows have is_recurrent = true and fixed_bill_id IS NULL.
--- 3. Legacy records should use the yearly upfront generation strategy.
+-- 2. Legacy recurring rows have is_recurrent = 1 and fixed_bill_id IS NULL.
+-- 3. Legacy records should use the YEARLY_UPFRONT generation strategy.
 --
 -- Safe to re-run: only rows without fixed_bill_id are considered.
 
 START TRANSACTION;
 
-DROP TEMPORARY TABLE IF EXISTS legacy_fixed_bill_groups;
+DROP TABLE IF EXISTS _legacy_fixed_bill_migration_staging;
 
-CREATE TEMPORARY TABLE legacy_fixed_bill_groups (
+CREATE TABLE _legacy_fixed_bill_migration_staging (
     migration_group_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     bill_name VARCHAR(100) NOT NULL,
@@ -25,8 +29,10 @@ CREATE TEMPORARY TABLE legacy_fixed_bill_groups (
     card_id VARCHAR(64) NULL,
     day_of_month INT NULL,
     start_bill_date VARCHAR(20) NOT NULL,
+    anchor_bill_id BIGINT NOT NULL,
     fixed_bill_id BIGINT NULL,
-    INDEX idx_legacy_fixed_bill_group_match (
+    UNIQUE KEY uk_legacy_migration_anchor (anchor_bill_id),
+    INDEX idx_legacy_migration_group_match (
         user_id,
         bill_name,
         bill_value,
@@ -35,7 +41,7 @@ CREATE TEMPORARY TABLE legacy_fixed_bill_groups (
     )
 );
 
-INSERT INTO legacy_fixed_bill_groups (
+INSERT INTO _legacy_fixed_bill_migration_staging (
     user_id,
     bill_name,
     bill_value,
@@ -46,7 +52,8 @@ INSERT INTO legacy_fixed_bill_groups (
     payment_type,
     card_id,
     day_of_month,
-    start_bill_date
+    start_bill_date,
+    anchor_bill_id
 )
 SELECT
     b.user_id,
@@ -63,9 +70,10 @@ SELECT
         GROUP_CONCAT(b.bill_date ORDER BY b.id ASC SEPARATOR '||'),
         '||',
         1
-    ) AS start_bill_date
+    ) AS start_bill_date,
+    MIN(b.id) AS anchor_bill_id
 FROM bill_table_data b
-WHERE b.is_recurrent = TRUE
+WHERE (b.is_recurrent = 1 OR b.is_recurrent IS TRUE)
   AND b.fixed_bill_id IS NULL
 GROUP BY
     b.user_id,
@@ -114,12 +122,13 @@ SELECT
     TRUE,
     'N',
     NOW(),
-    'finsavior-monolith',
+    'legacy-migration',
     NOW(),
-    'finsavior-monolith'
-FROM legacy_fixed_bill_groups g;
+    'legacy-migration'
+FROM _legacy_fixed_bill_migration_staging g
+WHERE g.fixed_bill_id IS NULL;
 
-UPDATE legacy_fixed_bill_groups g
+UPDATE _legacy_fixed_bill_migration_staging g
 JOIN fixed_bill fb
   ON fb.user_id = g.user_id
  AND fb.bill_name = g.bill_name
@@ -133,11 +142,12 @@ JOIN fixed_bill fb
  AND (fb.day_of_month <=> g.day_of_month)
  AND fb.start_bill_date = g.start_bill_date
  AND fb.generation_strategy = 'YEARLY_UPFRONT'
- AND fb.insert_id = 'finsavior-monolith'
-SET g.fixed_bill_id = fb.id;
+ AND fb.insert_id = 'legacy-migration'
+SET g.fixed_bill_id = fb.id
+WHERE g.fixed_bill_id IS NULL;
 
 UPDATE bill_table_data b
-JOIN legacy_fixed_bill_groups g
+JOIN _legacy_fixed_bill_migration_staging g
   ON b.user_id = g.user_id
  AND LEFT(b.bill_name, 100) = g.bill_name
  AND b.bill_value = g.bill_value
@@ -149,18 +159,20 @@ JOIN legacy_fixed_bill_groups g
  AND (LEFT(b.card_id, 64) <=> g.card_id)
 SET b.fixed_bill_id = g.fixed_bill_id,
     b.update_dtm = NOW(),
-    b.update_id = 'finsavior-monolith'
-WHERE b.is_recurrent = TRUE
+    b.update_id = 'legacy-migration'
+WHERE (b.is_recurrent = 1 OR b.is_recurrent IS TRUE)
   AND b.fixed_bill_id IS NULL;
 
 SELECT
     COUNT(*) AS fixed_bill_templates_created
-FROM legacy_fixed_bill_groups;
+FROM _legacy_fixed_bill_migration_staging;
 
 SELECT
     COUNT(*) AS legacy_recurrent_rows_remaining
 FROM bill_table_data
-WHERE is_recurrent = TRUE
+WHERE (is_recurrent = 1 OR is_recurrent IS TRUE)
   AND fixed_bill_id IS NULL;
+
+DROP TABLE IF EXISTS _legacy_fixed_bill_migration_staging;
 
 COMMIT;
