@@ -17,6 +17,8 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundExcept
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhatsappIntegrationException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
+import br.com.finsavior.monolith.finsavior_monolith.util.AiErrorMessages
+import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -26,9 +28,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 @ControllerAdvice
 class GlobalExceptionHandler {
 
+    private val log = KotlinLogging.logger {}
+
     @ExceptionHandler(CommunicationException::class)
     fun handleCommunicationException(ex: CommunicationException): ResponseEntity<ErrorResponse> {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message ?: "Communication error")
+        log.error(ex) { "Communication error" }
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, AiErrorMessages.GENERIC_UNAVAILABLE)
     }
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
@@ -44,7 +49,8 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException::class)
     fun handleRuntimeException(ex: RuntimeException): ResponseEntity<ErrorResponse> {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message ?: "Unexpected error")
+        log.error(ex) { "Unhandled runtime exception" }
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, AiErrorMessages.GENERIC_UNAVAILABLE)
     }
 
     @ExceptionHandler(LoginException::class)
@@ -64,7 +70,13 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(ChatbotException::class)
     fun handleChatbotException(ex: ChatbotException): ResponseEntity<ErrorResponse> {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "Processing chat error")
+        if (ex.cause != null) {
+            log.error(ex) { "Chatbot error" }
+        }
+        return buildErrorResponse(
+            HttpStatus.BAD_REQUEST,
+            AiErrorMessages.sanitizeForClient(ex.message, AiErrorMessages.CHAT_UNAVAILABLE)
+        )
     }
 
     @ExceptionHandler(InsufficientFsCoinsException::class)
@@ -84,7 +96,8 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(AiProcessDocumentException::class)
     fun handleAiProcessDocumentException(ex: AiProcessDocumentException): ResponseEntity<ErrorResponse> {
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message ?: "Document AI processing/parsing failed")
+        log.error(ex) { "Document AI processing failed" }
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, AiErrorMessages.GENERIC_UNAVAILABLE)
     }
 
     @ExceptionHandler(CardNotFoundException::class)
@@ -119,7 +132,13 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(AiAdviceException::class)
     fun handleAiAdviceException(ex: AiAdviceException): ResponseEntity<ErrorResponse> {
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "AI advice error")
+        if (ex.cause != null) {
+            log.error(ex) { "AI advice error" }
+        }
+        return buildErrorResponse(
+            HttpStatus.BAD_REQUEST,
+            AiErrorMessages.sanitizeForClient(ex.message, AiErrorMessages.ADVICE_UNAVAILABLE)
+        )
     }
 
     @ExceptionHandler(WhatsappIntegrationException::class)

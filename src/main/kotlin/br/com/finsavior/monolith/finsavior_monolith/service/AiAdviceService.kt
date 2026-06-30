@@ -4,6 +4,8 @@ import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
+import br.com.finsavior.monolith.finsavior_monolith.util.AiErrorMessages
+import br.com.finsavior.monolith.finsavior_monolith.util.AiExceptionSupport
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
@@ -126,7 +128,7 @@ class AiAdviceService(
             )
             aiService.chat(messages)
         } catch (e: Exception) {
-            throw AiAdviceException("Falha na comunicação com a API de IA", e)
+            throw AiExceptionSupport.adviceCommunicationFailure(e)
         }
 
         val isFree = planType == PlanTypeEnum.FREE && !hasUsedFreeAnalysis
@@ -198,7 +200,8 @@ class AiAdviceService(
             aiAdviceList?.map { aiAdvice -> aiAdvice?.let { responseAiAnalysisList.add(it.toAiAnalysisDTO()) } }
             return responseAiAnalysisList
         } catch (e: Exception) {
-            throw AiAdviceException("Falha ao carregar análises: ${e.message}")
+            AiExceptionSupport.logAdviceListFailure(e)
+            throw AiAdviceException(AiErrorMessages.GENERIC_UNAVAILABLE, e)
         }
     }
 
@@ -206,7 +209,8 @@ class AiAdviceService(
         try {
             aiAdviceRepository.deleteById(analysisId)
         } catch (e: Exception) {
-            throw AiAdviceException("Falha ao deletar análise: ${e.message}")
+            AiExceptionSupport.logAdviceDeleteFailure(analysisId, e)
+            throw AiAdviceException(AiErrorMessages.GENERIC_UNAVAILABLE, e)
         }
     }
 
@@ -362,7 +366,8 @@ class AiAdviceService(
             return result
 
         } catch (e: Exception) {
-            throw AiAdviceException("Falha ao gerar quick insight: ${e.message}")
+            AiExceptionSupport.logQuickInsightFailure(userId, date, e)
+            return QuickInsightDTO(AiErrorMessages.QUICK_INSIGHT_FALLBACK)
         }
     }
 

@@ -3,6 +3,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
+import br.com.finsavior.monolith.finsavior_monolith.util.AiExceptionSupport
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatResponse
@@ -67,7 +68,7 @@ class AiChatService(
         return try {
             aiServices.chat(messages)
         } catch (e: Exception) {
-            throw ChatbotException("Erro ao se comunicar com o assistente: ${e.message}", e)
+            throw AiExceptionSupport.chatCommunicationFailure(e)
         }
     }
 
