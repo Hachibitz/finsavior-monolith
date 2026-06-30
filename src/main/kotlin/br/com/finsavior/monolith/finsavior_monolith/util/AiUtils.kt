@@ -45,6 +45,7 @@ class AiUtils {
             - **deleteBill(itemId: Long, deleteAll: Boolean)** → Deleta um item de conta ou todas as parcelas de um parcelamento.
             - **editBillItem(request: BillTableDataDTO)** → Edita um item de conta.
             - **getChatHistory(offset: Int, limit: Int)** → Recupera o histórico de chat do usuário paginado.
+            - **loadUserGoals()** → Carrega as metas financeiras atuais do usuário (nome, valor alvo, valor atual, prazo, categoria).
             - **getAppInfo()** → Informações oficiais sobre o FinSavior
             - **getDevInfo()** → Detalhes sobre o desenvolvedor
             - **getPlanDetails(planType)** → Recursos do plano atual
