@@ -4,6 +4,8 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.exception.GoalNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
+import br.com.finsavior.monolith.finsavior_monolith.util.AiErrorMessages
+import br.com.finsavior.monolith.finsavior_monolith.util.AiExceptionSupport
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.GoalAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Goal
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.GoalAdviceHistory
@@ -55,10 +57,14 @@ class GoalAiService(
         val systemMessage = SystemMessage.from("Você é um consultor financeiro. Dê conselhos diretos e motivacionais.")
         val userMessage = UserMessage.from(prompt)
 
-        val response = aiService.chat(listOf(systemMessage, userMessage)).content().text()
+        val response = try {
+            aiService.chat(listOf(systemMessage, userMessage)).content().text()
+        } catch (e: Exception) {
+            throw AiExceptionSupport.goalAdviceCommunicationFailure(e)
+        }
 
         val adviceToSave = if (response.isNullOrBlank()) {
-            "Não foi possível gerar um conselho neste momento. Tente novamente mais tarde."
+            AiErrorMessages.GOAL_ADVICE_UNAVAILABLE
         } else {
             response
         }

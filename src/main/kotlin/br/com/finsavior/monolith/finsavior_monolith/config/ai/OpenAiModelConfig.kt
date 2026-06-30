@@ -16,21 +16,26 @@ object OpenAiModelConfig {
     const val DEFAULT_CHAT_MODEL = "gpt-5.4-nano"
     const val TRANSCRIPTION_MODEL = "whisper-1"
 
+    /** Savi chat — better tool use than Nano; ~$0.40/$1.60 per 1M tokens (vs Nano cheaper but hits payload limits). */
+    const val SAVI_CHAT_MODEL = "gpt-4.1-mini"
+
     const val CHAT_COMPLETIONS_API_URL = "https://api.openai.com/v1/chat/completions"
     const val AUDIO_TRANSCRIPTIONS_API_URL = "https://api.openai.com/v1/audio/transcriptions"
-
-    /** Savi conversational assistant — keep on Nano for lowest cost; context is trimmed server-side. */
-    const val SAVI_CHAT_MODEL = DEFAULT_CHAT_MODEL
 
     /** Default cap for Savi chat replies (bean used by AiChatService). */
     const val DEFAULT_CHAT_MAX_COMPLETION_TOKENS = 2000
 
     /** Recent exchanges sent back to the model (each exchange = user + assistant). */
-    const val CHAT_HISTORY_EXCHANGES = 6
+    const val CHAT_HISTORY_EXCHANGES = 8
 
-    const val CHAT_MESSAGE_MAX_CHARS = 1_200
+    const val CHAT_MESSAGE_MAX_CHARS = 1_500
     const val CHAT_QUESTION_MAX_CHARS = 2_000
-    const val CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS = 3
+    const val CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS = 5
+
+    /** Caps MCP tool payloads to keep a single chat request under org TPM limits. */
+    const val MCP_MAX_BILL_ROWS = 60
+    const val MCP_MAX_CHAT_HISTORY_ROWS = 5
+    const val MCP_MAX_CHAT_MESSAGE_CHARS = 500
 
     /** Short dashboard insight shown on the summary screen. */
     const val QUICK_INSIGHT_MAX_COMPLETION_TOKENS = 100

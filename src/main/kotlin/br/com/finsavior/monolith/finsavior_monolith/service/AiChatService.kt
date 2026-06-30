@@ -3,6 +3,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
+import br.com.finsavior.monolith.finsavior_monolith.util.AiExceptionSupport
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatRequest
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiChatResponse
@@ -17,7 +18,6 @@ import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAc
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getDateGuidelines
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFormatOfResponse
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getMcpToolsDescription
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseGuidelines
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseStructure
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSaviDescription
@@ -68,7 +68,7 @@ class AiChatService(
         return try {
             aiServices.chat(messages)
         } catch (e: Exception) {
-            throw ChatbotException("Erro ao se comunicar com o assistente: ${e.message}", e)
+            throw AiExceptionSupport.chatCommunicationFailure(e)
         }
     }
 
@@ -149,13 +149,11 @@ class AiChatService(
         return SystemMessage.from(
             """
             Você é a Savi, assistente financeira do FinSavior.
-            Use as ferramentas MCP quando precisar de dados.
+            Use as ferramentas MCP quando precisar de dados (incluindo loadUserGoals para metas financeiras).
             NÃO explique que vai usar ferramentas, apenas use-as silenciosamente.
             Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
 
             ${getSaviDescription()}
-
-            ${getMcpToolsDescription()}
 
             ${getFallbackRules(userId)}
 

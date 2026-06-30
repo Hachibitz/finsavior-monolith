@@ -1,13 +1,16 @@
 package br.com.finsavior.monolith.finsavior_monolith.config.ai
 
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.CardDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChatMessageDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.GoalDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ProfileDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.service.AiChatService
 import br.com.finsavior.monolith.finsavior_monolith.service.BillService
 import br.com.finsavior.monolith.finsavior_monolith.service.CardService
+import br.com.finsavior.monolith.finsavior_monolith.service.GoalService
 import br.com.finsavior.monolith.finsavior_monolith.service.TermsAndPrivacyService
 import br.com.finsavior.monolith.finsavior_monolith.service.UserService
 import dev.langchain4j.agent.tool.P
@@ -29,10 +32,19 @@ class MCPToolsConfig(
     private val aiChatService: AiChatService,
     private val billService: BillService,
     private val cardService: CardService,
+    private val goalService: GoalService,
     private val termsAndPrivacyService: TermsAndPrivacyService
 ) {
 
     private val log: KLogger = KotlinLogging.logger {  }
+
+    private fun cappedBills(bills: List<BillTableDataDTO>): List<BillTableDataDTO> =
+        bills.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS)
+
+    private fun truncateChat(text: String): String {
+        val max = OpenAiModelConfig.MCP_MAX_CHAT_MESSAGE_CHARS
+        return if (text.length <= max) text else text.take(max - 1) + "…"
+    }
 
     @PostConstruct
     fun verifyBeanCreation() {
@@ -47,7 +59,7 @@ class MCPToolsConfig(
     fun loadMainTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
     ): List<BillTableDataDTO> =
-        billService.loadMainTableData(billDate)
+        cappedBills(billService.loadMainTableData(billDate))
 
     @Tool(value = ["Load card IDs and names for the authenticated user"])
     fun loadUserCards(): List<CardDTO> =
@@ -57,26 +69,26 @@ class MCPToolsConfig(
     fun loadCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
     ): List<BillTableDataDTO> =
-        billService.loadCardTableData(billDate)
+        cappedBills(billService.loadCardTableData(billDate))
 
     @Tool(value = ["Load credit‐card expenses for a given month by cardId"])
     fun loadCardExpensesByCardId(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String,
         @P("The ID of the credit card") cardId: Long
     ): List<BillTableDataDTO> =
-        billService.loadCardExpenses(billDate, cardId)
+        cappedBills(billService.loadCardExpenses(billDate, cardId))
 
     @Tool(value = ["Load assets (salary, bonuses, etc) for a given month"])
     fun loadAssetsTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
     ): List<BillTableDataDTO> =
-        billService.loadAssetsTableData(billDate)
+        cappedBills(billService.loadAssetsTableData(billDate))
 
     @Tool(value = ["Load credit‐card payments (invoice payments) for a given month"])
     fun loadPaymentCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
     ): List<BillTableDataDTO> =
-        billService.loadPaymentCardTableData(billDate)
+        cappedBills(billService.loadPaymentCardTableData(billDate))
 
     @Tool(value = ["Delete a bill item by its ID"])
     fun deleteBillItem(@P("itemId from bill_table_data") itemId: Long): String {
@@ -121,8 +133,19 @@ class MCPToolsConfig(
         @P("limit") limit: Int
     ): List<ChatMessageDTO> {
         val userId = userService.getUserByContext().id!!
-        return aiChatService.getUserChatHistoryDTO(userId, offset, limit)
+        val safeLimit = minOf(limit, OpenAiModelConfig.MCP_MAX_CHAT_HISTORY_ROWS)
+        return aiChatService.getUserChatHistoryDTO(userId, offset, safeLimit).map {
+            ChatMessageDTO(
+                userMessage = truncateChat(it.userMessage),
+                assistantResponse = truncateChat(it.assistantResponse),
+                createdAt = it.createdAt
+            )
+        }
     }
+
+    @Tool(value = ["Load the authenticated user's current financial goals (name, target, progress, deadline, category)"])
+    fun loadUserGoals(): List<GoalDTO> =
+        goalService.getGoals()
 
     @Tool(value = ["Get official app information and features"])
     fun getAppInfo(): Map<String, Any> = mapOf(
