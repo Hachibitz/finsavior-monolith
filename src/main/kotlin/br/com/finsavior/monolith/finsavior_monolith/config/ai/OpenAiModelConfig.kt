@@ -19,8 +19,18 @@ object OpenAiModelConfig {
     const val CHAT_COMPLETIONS_API_URL = "https://api.openai.com/v1/chat/completions"
     const val AUDIO_TRANSCRIPTIONS_API_URL = "https://api.openai.com/v1/audio/transcriptions"
 
+    /** Savi conversational assistant — keep on Nano for lowest cost; context is trimmed server-side. */
+    const val SAVI_CHAT_MODEL = DEFAULT_CHAT_MODEL
+
     /** Default cap for Savi chat replies (bean used by AiChatService). */
     const val DEFAULT_CHAT_MAX_COMPLETION_TOKENS = 2000
+
+    /** Recent exchanges sent back to the model (each exchange = user + assistant). */
+    const val CHAT_HISTORY_EXCHANGES = 6
+
+    const val CHAT_MESSAGE_MAX_CHARS = 1_200
+    const val CHAT_QUESTION_MAX_CHARS = 2_000
+    const val CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS = 3
 
     /** Short dashboard insight shown on the summary screen. */
     const val QUICK_INSIGHT_MAX_COMPLETION_TOKENS = 100
