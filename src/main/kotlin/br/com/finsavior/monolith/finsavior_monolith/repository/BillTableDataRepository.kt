@@ -13,6 +13,7 @@ import java.time.LocalDateTime
 interface BillTableDataRepository : JpaRepository<BillTableData, Long> {
     fun findAllByUserIdAndBillDateAndBillTable(userId: Long, billDate: String, billTable: BillTableEnum): List<BillTableData>
     fun findAllByUserIdAndBillDateAndBillTableAndCardId(userId: Long, billDate: String, billTable: BillTableEnum, cardId: String): List<BillTableData>
+    fun findAllByFixedBillId(fixedBillId: Long): List<BillTableData>
     fun deleteByUserId(userId: Long)
     fun deleteByCardId(cardId: String)
 

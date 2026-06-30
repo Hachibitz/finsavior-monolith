@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.exception.BillRegisterException
 import br.com.finsavior.monolith.finsavior_monolith.exception.DeleteUserException
+import br.com.finsavior.monolith.finsavior_monolith.exception.UnauthorizedException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
@@ -14,10 +15,10 @@ import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toBillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toTableData
 import br.com.finsavior.monolith.finsavior_monolith.repository.AiAdviceRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepository
+import br.com.finsavior.monolith.finsavior_monolith.repository.FixedBillRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.InstallmentRepository
 import mu.KLogger
 import mu.KotlinLogging
-import org.springframework.cache.CacheManager
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -26,7 +27,6 @@ import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class BillService(
@@ -34,10 +34,17 @@ class BillService(
     private val userService: UserService,
     private val aiAdviceRepository: AiAdviceRepository,
     private val installmentRepository: InstallmentRepository,
-    private val cacheManager: CacheManager
+    private val fixedBillRepository: FixedBillRepository,
+    private val fixedBillService: FixedBillService,
+    private val billCacheService: BillCacheService
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
+
+    companion object {
+        private const val MAX_BILL_NAME_LENGTH = 100
+        private const val MAX_BILL_DESCRIPTION_LENGTH = 255
+    }
 
     fun billRegister(billRegisterRequestDTO: BillTableDataDTO): Long {
         val user: User = userService.getUserByContext()
@@ -46,14 +53,14 @@ class BillService(
             throw IllegalArgumentException("Tabela inválida")
         }
 
-        val enrichedRequest = billRegisterRequestDTO.copy(
+        val enrichedRequest = sanitize(billRegisterRequestDTO).copy(
             billDate = formatBillDate(billRegisterRequestDTO.billDate),
             userId = user.id!!
         )
 
         try {
-            val resultId = saveRegister(enrichedRequest)
-            evictUserCaches(user.id!!)
+            val resultId = saveRegister(enrichedRequest, user)
+            billCacheService.evictUserCaches(user.id!!)
             return resultId
         } catch (e: Exception) {
             log.error("Falha ao salvar o registro: ${e.message}")
@@ -69,25 +76,62 @@ class BillService(
             val existingRecord = billTableDataRepository.findById(id).orElseThrow {
                 IllegalArgumentException("Registro não encontrado")
             }
+            if (existingRecord.userId != user.id) {
+                throw UnauthorizedException("Você não tem permissão para alterar este registro")
+            }
+            val sanitized = sanitize(billTableDataDTO)
             existingRecord.apply {
-                billDate = formatBillDate(billTableDataDTO.billDate)
-                billName = billTableDataDTO.billName
-                billDescription = billTableDataDTO.billDescription
-                billValue = billTableDataDTO.billValue
-                isPaid = billTableDataDTO.paid
-                billCategory = billTableDataDTO.billCategory
-                paymentType = billTableDataDTO.paymentType
-                cardId = billTableDataDTO.cardId
+                billDate = formatBillDate(sanitized.billDate)
+                billName = sanitized.billName
+                billDescription = sanitized.billDescription
+                billValue = sanitized.billValue
+                isPaid = sanitized.paid
+                billCategory = sanitized.billCategory
+                paymentType = sanitized.paymentType
+                cardId = sanitized.cardId
+                parsePurchaseDate(sanitized.purchaseDate)?.let { purchaseDate = it }
                 audit?.updateDtm = LocalDateTime.now()
                 audit?.updateId = CommonEnum.APP_ID.name
             }
             billTableDataRepository.save(existingRecord)
-            evictUserCaches(user.id!!)
+            syncFixedBillTemplate(existingRecord)
+            billCacheService.evictUserCaches(user.id!!)
+        } catch (e: UnauthorizedException) {
+            throw e
         } catch (e: Exception) {
             log.error("Falha ao editar item da tabela principal: ${e.message}")
             throw BillRegisterException("Erro ao editar item da tabela principal: ${e.message}", e)
         }
     }
+
+    /** Keeps the fixed-bill template in sync when one of its instances is edited, so future months reflect the change. */
+    private fun syncFixedBillTemplate(bill: BillTableData) {
+        val fixedBill = bill.fixedBill ?: return
+        fixedBill.apply {
+            billName = bill.billName
+            billValue = bill.billValue
+            billDescription = bill.billDescription
+            billCategory = bill.billCategory
+            paymentType = bill.paymentType
+            cardId = bill.cardId
+            bill.purchaseDate?.let { dayOfMonth = it.dayOfMonth }
+            audit?.updateDtm = LocalDateTime.now()
+        }
+        fixedBillRepository.save(fixedBill)
+    }
+
+    private fun parsePurchaseDate(value: String?): LocalDate? {
+        if (value.isNullOrBlank()) return null
+        val normalized = value.trim().substringBefore('T')
+        return runCatching { LocalDate.parse(normalized) }.getOrNull()
+    }
+
+    /** Defense-in-depth: trims and bounds free-text fields for paths that bypass bean validation (AI import, batch). */
+    private fun sanitize(request: BillTableDataDTO): BillTableDataDTO =
+        request.copy(
+            billName = request.billName.trim().take(MAX_BILL_NAME_LENGTH),
+            billDescription = request.billDescription?.trim()?.take(MAX_BILL_DESCRIPTION_LENGTH)
+        )
 
     @Cacheable(value = ["mainTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
@@ -136,27 +180,37 @@ class BillService(
         val bill = billTableDataRepository.findById(itemId)
             .orElseThrow { IllegalArgumentException("Registro não encontrado") }
 
-        if (deleteAll && bill.installment != null) {
-            installmentRepository.delete(bill.installment!!)
-        } else {
-            billTableDataRepository.delete(bill)
+        if (bill.userId != user.id) {
+            throw UnauthorizedException("Você não tem permissão para excluir este registro")
         }
-        evictUserCaches(user.id!!)
+
+        when {
+            deleteAll && bill.installment != null -> installmentRepository.delete(bill.installment!!)
+            deleteAll && bill.fixedBill != null -> fixedBillRepository.delete(bill.fixedBill!!)
+            else -> billTableDataRepository.delete(bill)
+        }
+        billCacheService.evictUserCaches(user.id!!)
     }
 
     @Transactional
     fun deleteItemFromTable(itemId: Long) {
         val user = userService.getUserByContext()
-        billTableDataRepository.deleteById(itemId)
-        evictUserCaches(user.id!!)
+        val bill = billTableDataRepository.findById(itemId)
+            .orElseThrow { IllegalArgumentException("Registro não encontrado") }
+        if (bill.userId != user.id) {
+            throw UnauthorizedException("Você não tem permissão para excluir este registro")
+        }
+        billTableDataRepository.delete(bill)
+        billCacheService.evictUserCaches(user.id!!)
     }
 
     @Transactional
     fun deleteAllUserData(userId: Long) {
         try {
             billTableDataRepository.deleteByUserId(userId)
+            fixedBillRepository.deleteByUserId(userId)
             aiAdviceRepository.deleteByUserId(userId)
-            evictUserCaches(userId)
+            billCacheService.evictUserCaches(userId)
         } catch (e: Exception) {
             log.error("Falha ao deletar dados do usuário: ${e.message}")
             throw DeleteUserException(e.message?:"Erro ao deletar dados do usuário")
@@ -167,72 +221,36 @@ class BillService(
     fun batchRegister(requests: List<BillTableDataDTO>) {
         val user = userService.getUserByContext()
         requests.forEach { request ->
-            val enrichedRequest = request.copy(
+            val enrichedRequest = sanitize(request).copy(
                 billDate = formatBillDate(request.billDate),
                 userId = user.id!!,
                 billDescription = if (request.isInstallment == true && request.currentInstallment != null)
                     "${request.billDescription} | Via Importação (${request.currentInstallment}/${request.installmentCount})"
                 else request.billDescription
             )
-            saveRegister(enrichedRequest)
+            saveRegister(enrichedRequest, user)
         }
-        evictUserCaches(user.id!!)
+        billCacheService.evictUserCaches(user.id!!)
         log.info("Lote de ${requests.size} contas importado com sucesso para o usuário ${user.id}")
-    }
-
-    private fun evictUserCaches(userId: Long) {
-        val caches = listOf("mainTable", "cardTable", "cardExpenses", "assetsTable", "paymentCardTable")
-        for (cacheName in caches) {
-            val cache = cacheManager.getCache(cacheName)
-            if (cache != null && cache.nativeCache is ConcurrentHashMap<*, *>) {
-                val nativeCache = cache.nativeCache as ConcurrentHashMap<Any, Any>
-                val keysToRemove = nativeCache.keys.filter { it.toString().startsWith("$userId-") }
-                keysToRemove.forEach { nativeCache.remove(it) }
-            }
-        }
     }
 
     private fun validateBillTable(billTable: String?): Boolean {
         return BillTableEnum.entries.none { it.name == billTable }
     }
 
-    private fun saveRegister(request: BillTableDataDTO): Long {
+    private fun saveRegister(request: BillTableDataDTO, user: User): Long {
         return when {
-            request.isRecurrent == true -> saveRecurrentRegister(request)
-            request.isInstallment == true -> saveInstallmentRegister(request)
+            request.isRecurrent == true -> fixedBillService.createFixedBill(request, user)
+            request.isInstallment == true -> saveInstallmentRegister(request, user)
             else -> saveSingleRegister(request)
         }
     }
 
     @Transactional
-    private fun saveRecurrentRegister(request: BillTableDataDTO): Long {
-        val requestMonth = request.billDate.split(" ")[0]
-        val requestYear: String = request.billDate.split(" ")[1]
-        val monthId: Int = MonthEnum.valueOf(requestMonth.uppercase(Locale.getDefault())).id
-
-        var firstId: Long? = null
-
-        MonthEnum.entries.filter { it.id >= monthId }.forEach { month ->
-            val register: BillTableData = request.toTableData()
-            register.audit = Audit()
-            register.billDate = "${month.value} $requestYear"
-
-            val saved = billTableDataRepository.save(register)
-            if (firstId == null && month.id == monthId) {
-                firstId = saved.id
-            }
-
-            log.info("Registro recorrente salvo: $saved")
-        }
-
-        return firstId ?: throw BillRegisterException("Não foi possível salvar o registro recorrente")
-    }
-
-    @Transactional
-    private fun saveInstallmentRegister(request: BillTableDataDTO): Long {
-        val user = userService.getUserByContext()
+    private fun saveInstallmentRegister(request: BillTableDataDTO, user: User): Long {
         val totalInstallments = request.installmentCount ?: 1
         var currentBillDate = request.billDate
+        var purchaseDate: LocalDate? = parsePurchaseDate(request.purchaseDate)
         var firstId: Long? = null
 
         val installment = Installment(user = user)
@@ -246,6 +264,7 @@ class BillService(
             register.currentInstallment = i
             register.billDescription = " ${request.billDescription} | Parcela ($i/$totalInstallments)"
             register.installment = savedInstallment
+            register.purchaseDate = purchaseDate
 
             val saved = billTableDataRepository.save(register)
             if (firstId == null) {
@@ -255,6 +274,7 @@ class BillService(
             log.info("Parcela $i/$totalInstallments salva: $saved")
 
             currentBillDate = addOneMonthToDateString(currentBillDate)
+            purchaseDate = purchaseDate?.plusMonths(1)
         }
 
         return firstId ?: throw BillRegisterException("Não foi possível salvar as parcelas")

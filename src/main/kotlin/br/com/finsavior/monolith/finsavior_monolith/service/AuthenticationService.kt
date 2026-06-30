@@ -135,8 +135,8 @@ class AuthenticationService(
         }
     }
 
-    fun refreshToken(refreshToken: String): ResponseEntity<String> {
-        if (tokenProvider.validateToken(refreshToken)) {
+    fun refreshToken(refreshToken: String?): ResponseEntity<String> {
+        if (refreshToken != null && tokenProvider.validateToken(refreshToken)) {
             val username = tokenProvider.getUsernameFromToken(refreshToken)
 
             val newAccessToken = tokenProvider.generateToken(UsernamePasswordAuthenticationToken(username, null, emptyList()))
@@ -196,6 +196,8 @@ class AuthenticationService(
         refreshTokenCookie.domain = serverName
         refreshTokenCookie.path = "/"
         refreshTokenCookie.maxAge = fifteenMinutesInMs
+        tokenCookie.isHttpOnly = true
+        refreshTokenCookie.isHttpOnly = true
 
         if (isRememberMe) {
             val thirtyDaysExpirationInMs = 43800 * 60
@@ -317,6 +319,10 @@ class AuthenticationService(
         val tokenCookie = Cookie("accessToken", accessToken)
         val refreshTokenCookie = Cookie("refreshToken", refreshToken)
         setCookieProperties(tokenCookie, refreshTokenCookie, rememberMe, request.serverName)
+        if (request.isSecure) {
+            tokenCookie.secure = true
+            refreshTokenCookie.secure = true
+        }
 
         response.addCookie(tokenCookie)
         response.addCookie(refreshTokenCookie)

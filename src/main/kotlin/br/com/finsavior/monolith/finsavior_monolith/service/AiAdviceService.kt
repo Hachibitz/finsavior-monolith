@@ -1,6 +1,7 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.AiAdviceException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceDTO
@@ -32,7 +33,6 @@ import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
 import dev.langchain4j.model.openai.OpenAiChatModel
-import dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI
 import dev.langchain4j.model.output.Response
 import dev.langchain4j.service.AiServices
 import mu.KLogger
@@ -53,8 +53,8 @@ import java.time.YearMonth
 class AiAdviceService(
     private val aiAdviceRepository: AiAdviceRepository,
     private val analysisHistoryRepository: AiAnalysisHistoryRepository,
-    @Lazy private val userService: UserService,
-    @Value("\${ai.openai.api-key}") private val openAiApiKey: String,
+    @param:Lazy private val userService: UserService,
+    @param:Value("\${ai.openai.api-key}") private val openAiApiKey: String,
     private val fsCoinService: FsCoinService,
     private val financialService: FinancialService,
     private val cacheManager: CacheManager,
@@ -102,15 +102,9 @@ class AiAdviceService(
 
         val chatModel = OpenAiChatModel.builder()
             .apiKey(openAiApiKey)
-            .modelName(GPT_4_O_MINI)
+            .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature((if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature).toDouble())
-            .maxTokens(
-                when (analysisType) {
-                    AnalysisTypeEnum.TRIMESTER -> 4500
-                    AnalysisTypeEnum.ANNUAL -> 9000
-                    else -> 2000
-                }
-            )
+            .maxCompletionTokens(OpenAiModelConfig.maxCompletionTokensFor(analysisType))
             .build()
 
         val aiService = AiServices
@@ -416,9 +410,9 @@ class AiAdviceService(
     private fun callAiForQuickInsight(systemPrompt: SystemMessage, prompt: String): String? {
         val chatModel = OpenAiChatModel.builder()
             .apiKey(openAiApiKey)
-            .modelName(GPT_4_O_MINI)
+            .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.2)
-            .maxTokens(100)
+            .maxCompletionTokens(OpenAiModelConfig.QUICK_INSIGHT_MAX_COMPLETION_TOKENS)
             .build()
 
         val aiService = AiServices

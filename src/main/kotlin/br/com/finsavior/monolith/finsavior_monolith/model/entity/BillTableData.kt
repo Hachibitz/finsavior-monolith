@@ -12,13 +12,22 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import java.math.BigDecimal
+import java.time.LocalDate
 
 @Entity
-@Table(name = "bill_table_data")
+@Table(
+    name = "bill_table_data",
+    indexes = [
+        // Hot path: load-*-table-data queries filter by user + month + table.
+        Index(name = "idx_bill_user_date_table", columnList = "user_id,bill_date,bill_table"),
+        Index(name = "idx_bill_user_id", columnList = "user_id")
+    ]
+)
 class BillTableData(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,13 +43,13 @@ class BillTableData(
     @Column(name = "bill_date", nullable = false)
     var billDate: String,
 
-    @Column(name = "bill_name")
+    @Column(name = "bill_name", length = 100)
     var billName: String,
 
     @Column(name = "bill_value", nullable = false)
     var billValue: BigDecimal,
 
-    @Column(name = "bill_description")
+    @Column(name = "bill_description", length = 255)
     var billDescription: String? = null,
 
     @Enumerated(EnumType.STRING)
@@ -78,6 +87,18 @@ class BillTableData(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "installment_id")
     var installment: Installment? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fixed_bill_id")
+    var fixedBill: FixedBill? = null,
+
+    /**
+     * Real date the bill/purchase happened. [billDate] keeps the billing month
+     * (used for dashboard organization), while this column preserves the actual
+     * day — allowing, e.g., a December purchase to be shown on a January bill.
+     */
+    @Column(name = "purchase_date")
+    var purchaseDate: LocalDate? = null,
 
     @Embedded
     var audit: Audit? = null

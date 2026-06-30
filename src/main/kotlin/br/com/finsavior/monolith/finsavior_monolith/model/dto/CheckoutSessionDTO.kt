@@ -5,4 +5,5 @@ data class CheckoutSessionDTO(
     val url: String? = null,
     val email: String? = null,
     val clientSecret: String? = null,
+    val hostedCheckout: Boolean? = false,
 )

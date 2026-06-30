@@ -66,8 +66,15 @@ class AuthController(private val authenticationService: AuthenticationService) {
     }
 
     @PostMapping("/refresh-token")
-    fun refreshToken(@RequestBody refreshToken: String): ResponseEntity<String> =
-        authenticationService.refreshToken(refreshToken)
+    fun refreshToken(
+        @RequestBody(required = false) refreshToken: String?,
+        request: HttpServletRequest
+    ): ResponseEntity<String> =
+        authenticationService.refreshToken(
+            refreshToken
+                ?.takeIf { it.isNotBlank() }
+                ?: request.cookies?.firstOrNull { it.name == "refreshToken" }?.value
+        )
 
     @PostMapping("/password-recovery")
     @ResponseStatus(HttpStatus.OK)

@@ -72,7 +72,7 @@ class SecurityConfig(
                         "/resources/**",
                         "/swagger-ui/**",
                         "/v3/api-docs/**",
-                        "/actuator/**",
+                        "/actuator/health",
                         "/auth/refresh-token",
                         "/auth/login-google",
                         "/auth/login-auth",
@@ -89,6 +89,7 @@ class SecurityConfig(
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
                         "/user/test-producer",
+                        "/actuator/**",
                     ).hasRole("ADMIN")
                     // Endpoints que requerem USER ou ADMIN
                     .requestMatchers(

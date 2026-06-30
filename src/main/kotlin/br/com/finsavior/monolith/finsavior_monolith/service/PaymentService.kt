@@ -75,17 +75,18 @@ class PaymentService(
         }
     }
 
-    fun createCheckoutSession(planType: String, email: String): CheckoutSessionDTO {
+    fun createCheckoutSession(planType: String, email: String, hostedCheckout: Boolean = false): CheckoutSessionDTO {
         val productId = getPlanIdByPlanType(planType)
         val priceId = getPriceIdByProductId(productId)
-        val userId = userService.getUserByContext().id
+        val userId = userService.getUserByContext().id!!
         val externalUser = externalUserRepository.findByUserId(userId)
 
         val sessionBuilder = SessionCreateParams.builder()
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-            .setUiMode(SessionCreateParams.UiMode.EMBEDDED)
-            .setRedirectOnCompletion(SessionCreateParams.RedirectOnCompletion.NEVER)
             .setCustomerEmail(email)
+            .setClientReferenceId(userId.toString())
+            .putMetadata("userId", userId.toString())
+            .putMetadata("planType", planType)
             .addLineItem(
                 SessionCreateParams.LineItem.builder()
                     .setPrice(priceId)
@@ -99,6 +100,16 @@ class PaymentService(
                     .setTrialPeriodDays(7)
                     .build()
             )
+        }
+
+        if (hostedCheckout) {
+            sessionBuilder
+                .setSuccessUrl("$finsaviorHostUrl?checkout=success&session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl("$finsaviorHostUrl?checkout=cancel")
+        } else {
+            sessionBuilder
+                .setUiMode(SessionCreateParams.UiMode.EMBEDDED)
+                .setRedirectOnCompletion(SessionCreateParams.RedirectOnCompletion.NEVER)
         }
 
         val session = Session.create(sessionBuilder.build())

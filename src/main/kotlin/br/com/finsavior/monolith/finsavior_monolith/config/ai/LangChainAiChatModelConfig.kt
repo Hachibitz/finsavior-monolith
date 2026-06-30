@@ -2,7 +2,6 @@ package br.com.finsavior.monolith.finsavior_monolith.config.ai
 
 import dev.langchain4j.model.chat.ChatLanguageModel
 import dev.langchain4j.model.openai.OpenAiChatModel
-import dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -16,10 +15,10 @@ class LangChainAiChatModelConfig(
     fun chatModel(): ChatLanguageModel =
         OpenAiChatModel.builder()
             .apiKey(openAiApiKey)
-            .modelName(GPT_4_O_MINI)
+            .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.2)
-            .maxTokens(2000)
-            .logRequests(true)
-            .logResponses(true)
+            .maxCompletionTokens(OpenAiModelConfig.DEFAULT_CHAT_MAX_COMPLETION_TOKENS)
+            .logRequests(false)
+            .logResponses(false)
             .build()
 }

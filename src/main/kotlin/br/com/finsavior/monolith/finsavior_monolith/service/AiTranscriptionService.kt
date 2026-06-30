@@ -3,9 +3,11 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperApiException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AudioProcessingStatus
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.MediaUploadValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
 import mu.KotlinLogging
@@ -36,10 +38,6 @@ class AiTranscriptionService(
     private val categoryService: CategoryService,
     @param:Value("\${fscoins-cost-for-audio:10}") private val coinsCostForAudio: Long,
 ) {
-    companion object {
-        const val OPEN_AI_TRANSCRIBE_AUDIO_API_URL = "https://api.openai.com/v1/audio/transcriptions"
-        const val OPEN_AI_CHAT_COMPLETION_API_URL = "https://api.openai.com/v1/chat/completions"
-    }
 
     private val restTemplate = RestTemplate()
     private val objectMapper = jacksonObjectMapper()
@@ -78,12 +76,16 @@ class AiTranscriptionService(
     private fun transcribeAudio(audioFile: MultipartFile): String {
         log.info("M=transcribeAudio, I=Iniciando processo. Arquivo recebido: ${audioFile.originalFilename}, Tamanho: ${audioFile.size}")
 
+        validateAudioUpload(audioFile)
+
         val mp3File = convertToMp3(audioFile)
         return sendToOpenAI(mp3File)
     }
 
     fun transcribeAudioFromFile(audioFile: File): String {
         log.info("M=transcribeAudioFromFile, I=Iniciando processo. Arquivo recebido: ${audioFile.name}, Tamanho: ${audioFile.length()}")
+
+        validateAudioFile(audioFile)
 
         val mp3File = convertToMp3(audioFile)
         try {
@@ -101,7 +103,7 @@ class AiTranscriptionService(
         try {
             log.info("M=sendToOpenAI, I=Enviando MP3 convertido para OpenAI.")
             val requestEntity = createOpenAiTranscriptionRequest(mp3File)
-            val response = restTemplate.postForEntity(OPEN_AI_TRANSCRIBE_AUDIO_API_URL, requestEntity, Map::class.java)
+            val response = restTemplate.postForEntity(OpenAiModelConfig.AUDIO_TRANSCRIPTIONS_API_URL, requestEntity, Map::class.java)
             val transcription = extractTranscriptionFromResponse(response.body)
 
             log.info("M=sendToOpenAI, I=Transcrição de áudio bem-sucedida.")
@@ -125,7 +127,7 @@ class AiTranscriptionService(
 
         val body = LinkedMultiValueMap<String, Any>().apply {
             add("file", FileSystemResource(mp3File))
-            add("model", "whisper-1")
+            add("model", OpenAiModelConfig.TRANSCRIPTION_MODEL)
             add("language", "pt")
         }
         return HttpEntity(body, headers)
@@ -192,7 +194,7 @@ class AiTranscriptionService(
         val prompt = getBillFromWhisperPrompt(text)
 
         val requestBody = mapOf(
-            "model" to "gpt-4o-mini",
+            "model" to OpenAiModelConfig.DEFAULT_CHAT_MODEL,
             "messages" to listOf(
                 mapOf("role" to "system", "content" to "Retorne apenas JSON."),
                 mapOf("role" to "user", "content" to prompt)
@@ -203,7 +205,7 @@ class AiTranscriptionService(
         val requestEntity = HttpEntity(requestBody, headers)
 
         try {
-            val response = restTemplate.postForEntity(OPEN_AI_CHAT_COMPLETION_API_URL, requestEntity, Map::class.java)
+            val response = restTemplate.postForEntity(OpenAiModelConfig.CHAT_COMPLETIONS_API_URL, requestEntity, Map::class.java)
             val choices = response.body?.get("choices") as List<Map<String, Any>>
             val message = choices[0]["message"] as Map<String, Any>
             val content = message["content"] as String
@@ -238,6 +240,22 @@ class AiTranscriptionService(
                 log.warn("M=validateAudioLimit, W=Limite do plano atingido para o usuário $userId.")
                 throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade para ilimitado!")
             }
+        }
+    }
+
+    private fun validateAudioUpload(audioFile: MultipartFile) {
+        try {
+            MediaUploadValidator.validateAudioUpload(audioFile)
+        } catch (e: IllegalArgumentException) {
+            throw WhisperApiException(e.message ?: "Arquivo de áudio inválido.")
+        }
+    }
+
+    private fun validateAudioFile(audioFile: File) {
+        try {
+            MediaUploadValidator.validateAudioFile(audioFile)
+        } catch (e: IllegalArgumentException) {
+            throw WhisperApiException(e.message ?: "Arquivo de áudio inválido.")
         }
     }
 

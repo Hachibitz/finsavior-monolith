@@ -30,10 +30,12 @@ class JWTAuthenticationFilter(
 
     private fun extractTokenFromRequest(request: HttpServletRequest): String? {
         val bearerToken = request.getHeader("Authorization")
-        return if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            bearerToken.substring(7)
-        } else {
-            null
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7)
         }
+
+        return request.cookies
+            ?.firstOrNull { it.name == "accessToken" }
+            ?.value
     }
 }
