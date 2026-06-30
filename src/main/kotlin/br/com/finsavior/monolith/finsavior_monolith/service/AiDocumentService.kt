@@ -8,6 +8,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.DocumentProcess
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.DocumentProcessingHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.MediaUploadValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
 import mu.KotlinLogging
@@ -136,6 +137,8 @@ class AiDocumentService(
     }
 
     private fun extractTextFromPdf(file: MultipartFile, password: String?): String {
+        validatePdfUpload(file)
+
         return runCatching {
             PDDocument.load(file.inputStream, password ?: "").use { document ->
                 PDFTextStripper().getText(document)
@@ -159,7 +162,21 @@ class AiDocumentService(
         }
     }
 
+    private fun validatePdfUpload(file: MultipartFile) {
+        try {
+            MediaUploadValidator.validatePdfUpload(file)
+        } catch (e: IllegalArgumentException) {
+            throw AiProcessDocumentException(e.message ?: "Arquivo PDF inválido.")
+        }
+    }
+
     private fun extractFinancialData(text: String, docType: String): List<AiBillExtractionDTO> {
+        try {
+            MediaUploadValidator.validateExtractedPdfTextLength(text)
+        } catch (e: IllegalArgumentException) {
+            throw AiProcessDocumentException(e.message ?: "PDF muito extenso para processamento.")
+        }
+
         log.info("Sending document text for analysis. Size: ${text.length} characters")
 
         val headers = buildHeaders()

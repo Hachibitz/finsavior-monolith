@@ -7,6 +7,7 @@ import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AudioProcessingStatus
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.MediaUploadValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
 import mu.KotlinLogging
@@ -75,12 +76,16 @@ class AiTranscriptionService(
     private fun transcribeAudio(audioFile: MultipartFile): String {
         log.info("M=transcribeAudio, I=Iniciando processo. Arquivo recebido: ${audioFile.originalFilename}, Tamanho: ${audioFile.size}")
 
+        validateAudioUpload(audioFile)
+
         val mp3File = convertToMp3(audioFile)
         return sendToOpenAI(mp3File)
     }
 
     fun transcribeAudioFromFile(audioFile: File): String {
         log.info("M=transcribeAudioFromFile, I=Iniciando processo. Arquivo recebido: ${audioFile.name}, Tamanho: ${audioFile.length()}")
+
+        validateAudioFile(audioFile)
 
         val mp3File = convertToMp3(audioFile)
         try {
@@ -235,6 +240,22 @@ class AiTranscriptionService(
                 log.warn("M=validateAudioLimit, W=Limite do plano atingido para o usuário $userId.")
                 throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade para ilimitado!")
             }
+        }
+    }
+
+    private fun validateAudioUpload(audioFile: MultipartFile) {
+        try {
+            MediaUploadValidator.validateAudioUpload(audioFile)
+        } catch (e: IllegalArgumentException) {
+            throw WhisperApiException(e.message ?: "Arquivo de áudio inválido.")
+        }
+    }
+
+    private fun validateAudioFile(audioFile: File) {
+        try {
+            MediaUploadValidator.validateAudioFile(audioFile)
+        } catch (e: IllegalArgumentException) {
+            throw WhisperApiException(e.message ?: "Arquivo de áudio inválido.")
         }
     }
 
