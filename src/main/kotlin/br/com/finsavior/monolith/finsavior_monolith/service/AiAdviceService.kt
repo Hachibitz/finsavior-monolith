@@ -104,6 +104,7 @@ class AiAdviceService(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature((if (planType == PlanTypeEnum.FREE) 0.0f else request.temperature).toDouble())
+            .maxCompletionTokens(OpenAiModelConfig.maxCompletionTokensFor(analysisType))
             .build()
 
         val aiService = AiServices
@@ -411,6 +412,7 @@ class AiAdviceService(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.2)
+            .maxCompletionTokens(OpenAiModelConfig.QUICK_INSIGHT_MAX_COMPLETION_TOKENS)
             .build()
 
         val aiService = AiServices

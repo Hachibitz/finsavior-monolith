@@ -45,6 +45,7 @@ class GoalAiService(
             .apiKey(openAiApiKey)
             .modelName(OpenAiModelConfig.DEFAULT_CHAT_MODEL)
             .temperature(0.7)
+            .maxCompletionTokens(OpenAiModelConfig.GOAL_ADVICE_MAX_COMPLETION_TOKENS)
             .build()
 
         val aiService = AiServices.builder(SaviAssistant::class.java)
