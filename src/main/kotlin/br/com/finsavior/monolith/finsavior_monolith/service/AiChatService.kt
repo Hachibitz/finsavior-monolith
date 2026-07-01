@@ -15,12 +15,11 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageHistor
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageRepository
 import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviAssistant
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAccountGuide
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseFormat
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseGuidelines
+import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatSaviDescription
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getDateGuidelines
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFormatOfResponse
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseGuidelines
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getResponseStructure
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSaviDescription
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import dev.langchain4j.data.message.AiMessage
@@ -153,19 +152,17 @@ class AiChatService(
             NÃO explique que vai usar ferramentas, apenas use-as silenciosamente.
             Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
 
-            ${getSaviDescription()}
+            ${getChatSaviDescription()}
 
             ${getFallbackRules(userId)}
 
             ${getSearchingDataStrategy(userId)}
 
-            ${getResponseGuidelines()}
+            ${getChatResponseGuidelines()}
 
             ${getDateGuidelines(currentDate)}
 
-            ${getResponseStructure()}
-
-            ${getFormatOfResponse()}
+            ${getChatResponseFormat()}
 
             # Id do usuário para uso no MCP Tools
             $userId
