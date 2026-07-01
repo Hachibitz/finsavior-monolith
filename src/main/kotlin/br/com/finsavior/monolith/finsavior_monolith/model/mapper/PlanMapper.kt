@@ -11,10 +11,11 @@ fun Plan.toPlanDTO(): PlanDTO {
     )
 }
 
-fun UserPlan.toPlanDTO(): PlanDTO {
+fun UserPlan.toPlanDTO(subscriptionProvider: String? = null): PlanDTO {
     return PlanDTO(
         planId = this.plan.id,
         planDs = this.plan.description,
-        subscriptionStatus = this.subscriptionStatus
+        subscriptionStatus = this.subscriptionStatus,
+        subscriptionProvider = subscriptionProvider
     )
 }

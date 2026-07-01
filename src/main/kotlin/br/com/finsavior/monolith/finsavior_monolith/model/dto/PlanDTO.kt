@@ -6,5 +6,6 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStat
 data class PlanDTO (
     val planId: String,
     val planDs: PlanTypeEnum,
-    val subscriptionStatus: SubscriptionStatusEnum? = null
+    val subscriptionStatus: SubscriptionStatusEnum? = null,
+    val subscriptionProvider: String? = null
 )

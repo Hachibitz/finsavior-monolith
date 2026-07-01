@@ -163,6 +163,10 @@ class PaymentService(
         val externalUser = externalUserRepository.findByUserId(user.id!!)
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
 
+        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
+            throw PaymentException("Assinaturas Google Play devem ser gerenciadas na Play Store.")
+        }
+
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
 
@@ -182,6 +186,10 @@ class PaymentService(
 
         val externalUser = externalUserRepository.findByUserId(user.id!!)
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
+
+        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
+            throw PaymentException("Assinaturas Google Play devem ser gerenciadas na Play Store.")
+        }
 
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")

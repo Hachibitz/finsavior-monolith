@@ -140,7 +140,9 @@ class UserService(
             profilePictureBase64 = Base64.getEncoder().encodeToString(profilePictureBytes)
         }
 
-        return user.toUserProfileDTO()
+        return user.toUserProfileDTO(
+            externalUserRepository.findByUserId(user.id!!)?.externalProvider?.name
+        )
     }
 
     fun updateProfile(profilePicture: MultipartFile?, updateProfileRequest: UpdateProfileRequestDTO) {
@@ -256,6 +258,12 @@ class UserService(
             PlanTypeEnum.STRIPE_PLUS_ANNUAL.id -> PlanTypeEnum.STRIPE_PLUS_ANNUAL
             PlanTypeEnum.STRIPE_PREMIUM_MONTHLY.id -> PlanTypeEnum.STRIPE_PREMIUM_MONTHLY
             PlanTypeEnum.STRIPE_PREMIUM_ANNUAL.id -> PlanTypeEnum.STRIPE_PREMIUM_ANNUAL
+            PlanTypeEnum.PLAY_BASIC_MONTHLY.id -> PlanTypeEnum.PLAY_BASIC_MONTHLY
+            PlanTypeEnum.PLAY_BASIC_ANNUAL.id -> PlanTypeEnum.PLAY_BASIC_ANNUAL
+            PlanTypeEnum.PLAY_PLUS_MONTHLY.id -> PlanTypeEnum.PLAY_PLUS_MONTHLY
+            PlanTypeEnum.PLAY_PLUS_ANNUAL.id -> PlanTypeEnum.PLAY_PLUS_ANNUAL
+            PlanTypeEnum.PLAY_PREMIUM_MONTHLY.id -> PlanTypeEnum.PLAY_PREMIUM_MONTHLY
+            PlanTypeEnum.PLAY_PREMIUM_ANNUAL.id -> PlanTypeEnum.PLAY_PREMIUM_ANNUAL
             else -> PlanTypeEnum.FREE
         }
 

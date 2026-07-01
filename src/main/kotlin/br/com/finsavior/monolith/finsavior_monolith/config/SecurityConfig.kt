@@ -83,6 +83,7 @@ class SecurityConfig(
                         "/auth/validate-token",
                         "/terms-and-privacy/**",
                         "/stripe/payment/webhook",
+                        "/payment/google-play/rtdn",
                         "/whatsapp/webhook",
                         "/contact",
                     ).permitAll()

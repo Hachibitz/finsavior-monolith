@@ -18,13 +18,13 @@ fun SignUpDTO.toUser(): User =
         audit = Audit(),
     )
 
-fun User.toUserProfileDTO(): ProfileDataDTO =
+fun User.toUserProfileDTO(subscriptionProvider: String? = null): ProfileDataDTO =
     ProfileDataDTO(
         id = this.id,
         username = this.username,
         profilePicture = this.userProfile!!.profilePicture,
         email = this.userProfile!!.email,
-        plan = this.userPlan!!.toPlanDTO(),
+        plan = this.userPlan!!.toPlanDTO(subscriptionProvider),
         firstName = this.firstName,
         lastName = this.lastName,
         name = this.getFirstAndLastName(),
