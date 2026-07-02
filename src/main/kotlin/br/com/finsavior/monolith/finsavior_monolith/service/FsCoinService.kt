@@ -6,13 +6,17 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserFsCoin
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AnalysisTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserFsCoinRepository
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
+import java.time.Duration
 
 @Service
 class FsCoinService(
     private val userFsCoinRepository: UserFsCoinRepository,
     private val userService: UserService,
+    private val rateLimitService: RateLimitService,
     @param:Value("\${fscoins-per-ad}") private val coinsPerAd: Long,
     @param:Value("\${fscoin-cost-for-monthly-analysis}") private val fsCoinCostForMonthlyAnalysis: Long,
     @param:Value("\${fscoin-cost-for-trimester-analysis}") private val fsCoinCostForTrimesterAnalysis: Long,
@@ -37,6 +41,11 @@ class FsCoinService(
     @Transactional
     fun earnCoins(userId: Long? = null): Long {
         val finalUserId = userId ?: currentUserId()
+        // Rewarded ads are ~30s each, so more than 12/hour per user is not a
+        // legitimate pattern — caps unlimited coin farming via direct API calls.
+        if (!rateLimitService.tryConsume("fscoin-earn:$finalUserId", 12, Duration.ofHours(1))) {
+            throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Limite de recompensas por hora atingido.")
+        }
         val record = userFsCoinRepository.findByUserId(finalUserId)
             ?: UserFsCoin(userId = finalUserId, balance = 0L)
         record.balance += coinsPerAd

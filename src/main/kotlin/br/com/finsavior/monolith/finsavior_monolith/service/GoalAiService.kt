@@ -39,6 +39,10 @@ class GoalAiService(
         val goal = goalRepository.findById(goalId)
             .orElseThrow { GoalNotFoundException("Meta com id $goalId não encontrada") }
 
+        if (goal.user.id != user.id) {
+            throw GoalNotFoundException("Meta com id $goalId não encontrada")
+        }
+
         validateGoalAdvicePlanCoverage(user, useCoins)
 
         val prompt = buildGoalAdvicePrompt(goal)

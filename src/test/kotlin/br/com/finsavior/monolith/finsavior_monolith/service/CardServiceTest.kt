@@ -1,13 +1,11 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
-import br.com.finsavior.monolith.finsavior_monolith.exception.CardDeletionException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.CardUnauthorizedException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.CardRegisterDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.CardUpdateDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Card
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
-import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.CardStyleEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.BillTableDataRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.CardRepository
@@ -129,40 +127,29 @@ class CardServiceTest {
     }
 
     @Test
-    fun `deleteCard should throw CardDeletionException when card has linked expenses`() {
-        val card = Card(id = 1L, name = "My Card", style = CardStyleEnum.SLATE_DARK, user = user, audit = null)
-        val billData = br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData(
-            id = 1L,
-            userId = user.id!!,
-            billType = "My Card",
-            billDate = "Feb 2026",
-            billName = "Test",
-            billValue = java.math.BigDecimal("100.00"),
-            billTable = BillTableEnum.CREDIT_CARD,
-            isPaid = false,
-            audit = null
-        )
-
-        whenever(userService.getUserByContext()).thenReturn(user)
-        whenever(cardRepository.findById(1L)).thenReturn(Optional.of(card))
-        whenever(billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(user.id!!, "%", BillTableEnum.CREDIT_CARD)).thenReturn(listOf(billData))
-
-        assertThrows(CardDeletionException::class.java) {
-            cardService.deleteCard(1L)
-        }
-    }
-
-    @Test
-    fun `deleteCard should succeed when no linked expenses exist`() {
+    fun `deleteCard should delete card and its linked bills`() {
         val card = Card(id = 1L, name = "My Card", style = CardStyleEnum.SLATE_DARK, user = user, audit = null)
 
         whenever(userService.getUserByContext()).thenReturn(user)
         whenever(cardRepository.findById(1L)).thenReturn(Optional.of(card))
-        whenever(billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(user.id!!, "%", BillTableEnum.CREDIT_CARD)).thenReturn(emptyList())
 
         cardService.deleteCard(1L)
 
+        org.mockito.Mockito.verify(billTableDataRepository).deleteByCardId("1")
         org.mockito.Mockito.verify(cardRepository).delete(card)
+    }
+
+    @Test
+    fun `deleteCard should throw CardUnauthorizedException when card belongs to different user`() {
+        val otherUser = User(id = 2L, username = "other", password = "pass", firstName = "Other", lastName = "User", email = "other@test.com", userPlan = null, userProfile = null, roles = mutableSetOf(), enabled = true, audit = null)
+        val card = Card(id = 1L, name = "Other's Card", style = CardStyleEnum.SLATE_DARK, user = otherUser, audit = null)
+
+        whenever(userService.getUserByContext()).thenReturn(user)
+        whenever(cardRepository.findById(1L)).thenReturn(Optional.of(card))
+
+        assertThrows(CardUnauthorizedException::class.java) {
+            cardService.deleteCard(1L)
+        }
     }
 }
 

@@ -69,9 +69,14 @@ class AiAdviceService(
 
     private data class QuickInsightCacheEntry(val insight: QuickInsightDTO, val baseline: BigDecimal)
 
-    fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO =
-        aiAdviceRepository.findById(aiAdviceId)
-            .orElseThrow { AiAdviceException("Análise não encontrada") }.toAiAnalysisDTO()
+    fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO {
+        val advice = aiAdviceRepository.findById(aiAdviceId)
+            .orElseThrow { AiAdviceException("Análise não encontrada") }
+        if (advice.userId != userService.getUserByContext().id) {
+            throw AiAdviceException("Análise não encontrada")
+        }
+        return advice.toAiAnalysisDTO()
+    }
 
     @Transactional
     fun generateAiAdviceWithAutoPrompt(request: AiAdviceDTO): AiAdviceResponseDTO {
@@ -207,7 +212,13 @@ class AiAdviceService(
 
     fun deleteAnalysis(analysisId: Long) {
         try {
+            val advice = aiAdviceRepository.findById(analysisId).orElse(null) ?: return
+            if (advice.userId != userService.getUserByContext().id) {
+                throw AiAdviceException("Análise não encontrada")
+            }
             aiAdviceRepository.deleteById(analysisId)
+        } catch (e: AiAdviceException) {
+            throw e
         } catch (e: Exception) {
             AiExceptionSupport.logAdviceDeleteFailure(analysisId, e)
             throw AiAdviceException(AiErrorMessages.GENERIC_UNAVAILABLE, e)

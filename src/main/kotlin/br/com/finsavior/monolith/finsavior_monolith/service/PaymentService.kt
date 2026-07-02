@@ -119,12 +119,16 @@ class PaymentService(
     }
 
     fun createCustomerPortalSession(email: String): Map<String, String> {
+        // The client-supplied email is ignored: the portal must always belong to
+        // the authenticated user, otherwise anyone could open another customer's
+        // Stripe billing portal just by guessing their e-mail.
+        val ownEmail = userService.getUserByContext().email
         val customer = Customer.list(
             CustomerListParams.builder()
-                .setEmail(email)
+                .setEmail(ownEmail)
                 .setLimit(1)
                 .build()
-        ).data.firstOrNull() ?: throw IllegalStateException("Cliente não encontrado para o e-mail: $email")
+        ).data.firstOrNull() ?: throw IllegalStateException("Cliente Stripe não encontrado para o usuário autenticado")
 
         val params = com.stripe.param.billingportal.SessionCreateParams.builder()
             .setCustomer(customer.id)

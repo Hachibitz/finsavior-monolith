@@ -120,7 +120,7 @@ class GooglePlayBillingService(
         log.info { "Processing Google Play RTDN payload" }
 
         val purchaseToken = extractPurchaseToken(json) ?: run {
-            log.warn { "RTDN payload without purchaseToken: $json" }
+            log.warn { "RTDN payload without purchaseToken (ignored)" }
             return
         }
 

@@ -21,7 +21,8 @@ class CustomAuthenticationProvider(
         val username = authentication.name
         val password = authentication.credentials.toString()
 
-        val user = userRepository.findByUsername(username) ?: throw BadCredentialsException("Usuário não encontrado")
+        // Same message as bad-password to avoid username enumeration.
+        val user = userRepository.findByUsername(username) ?: throw BadCredentialsException("Credenciais inválidas")
 
         if (!passwordEncoder.matches(password, user.password)) {
             throw BadCredentialsException("Credenciais inválidas")

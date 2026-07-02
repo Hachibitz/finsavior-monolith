@@ -62,16 +62,19 @@ class GooglePlayBillingController(
 
     /**
      * Prefers Pub/Sub OIDC (Google-signed JWT in the Authorization header);
-     * falls back to the shared query token compared in constant time. If
-     * neither mechanism is configured the endpoint accepts all messages —
-     * verification of the purchase against the Google API still applies.
+     * falls back to the shared query token compared in constant time. Fails
+     * closed: if neither mechanism is configured, every message is rejected —
+     * an unauthenticated RTDN endpoint would let anyone trigger downgrades.
      */
     private fun isAuthorizedRtdn(queryToken: String?, authorization: String?): Boolean {
         if (properties.rtdnOidcAudience.isNotBlank()) {
             return verifyOidcToken(authorization)
         }
         val expected = properties.rtdnVerificationToken
-        if (expected.isBlank()) return true
+        if (expected.isBlank()) {
+            log.error { "RTDN rejected: neither rtdn-oidc-audience nor rtdn-verification-token is configured" }
+            return false
+        }
         if (queryToken == null) return false
         return MessageDigest.isEqual(expected.toByteArray(), queryToken.toByteArray())
     }

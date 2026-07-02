@@ -197,9 +197,11 @@ class UserService(
         userTransactionManagerRepository.save(userTransactionManager)
 
         try {
-            deleteAccountProducer.sendMessage(deleteAccountRequestDTO)
+            // Always queue the CONTEXT user's username: trusting the client-supplied
+            // username would let any authenticated user delete someone else's account.
+            deleteAccountProducer.sendMessage(deleteAccountRequestDTO.copy(username = user.username))
             log.info(
-                "Exclusão do usuário ${deleteAccountRequestDTO.username} enviada para a fila com sucesso."
+                "Exclusão do usuário ${user.username} enviada para a fila com sucesso."
             )
         } catch (e: Exception) {
             log.error("method: {}, message: {}, error: {}", "deleteAccount", "falha no envio para a fila", e.message)
