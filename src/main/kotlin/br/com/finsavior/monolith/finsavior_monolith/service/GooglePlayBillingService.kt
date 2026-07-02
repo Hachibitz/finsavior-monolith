@@ -80,13 +80,18 @@ class GooglePlayBillingService(
         val user = userService.getUserByContext()
         val userId = user.id!!
         ensureNoConflictingProvider(userId, ExternalProvider.STRIPE)
+        ensureTokenNotLinkedToAnotherUser(userId, request.purchaseToken)
 
-        val packageName = request.packageName?.takeIf { it.isNotBlank() } ?: properties.packageName
-        val subscription = fetchSubscription(packageName, request.purchaseToken)
+        // Package name always comes from server config — never trust the client here.
+        val subscription = fetchSubscription(properties.packageName, request.purchaseToken)
         val planType = resolvePlanType(request.productId, subscription)
             ?: throw PaymentException("Produto Google Play não reconhecido: ${request.productId}")
 
         val status = mapSubscriptionStatus(subscription)
+        if (status == SubscriptionStatusEnum.INACTIVE) {
+            throw PaymentException("Esta assinatura não está ativa na Google Play.")
+        }
+
         applyPlan(user, planType, status)
         saveExternalUser(user, request.purchaseToken, subscription, planType)
 
@@ -112,14 +117,17 @@ class GooglePlayBillingService(
             return
         }
 
-        val subscription = fetchSubscription(properties.packageName, purchaseToken)
+        // Resolve the local link first: unknown tokens (e.g. upgrades issuing a new
+        // token, or test purchases) are ignored without spending a Google API call —
+        // and without throwing, which would make Pub/Sub redeliver forever.
         val externalUser = externalUserRepository.findBySubscriptionId(purchaseToken)
             ?: run {
-                log.warn { "RTDN for unknown purchaseToken" }
+                log.warn { "RTDN for unknown purchaseToken — ignored" }
                 return
             }
 
         val user = userRepository.findById(externalUser.userId).orElse(null) ?: return
+        val subscription = fetchSubscription(properties.packageName, purchaseToken)
         val status = mapSubscriptionStatus(subscription)
 
         when {
@@ -158,10 +166,29 @@ class GooglePlayBillingService(
         }
     }
 
-    private fun resolvePlanType(productId: String, subscription: SubscriptionPurchaseV2): PlanTypeEnum? {
-        PlanTypeEnum.fromPlayProductId(productId)?.let { return it }
-        val lineItemProduct = subscription.lineItems?.firstOrNull()?.productId
-        return lineItemProduct?.let { PlanTypeEnum.fromPlayProductId(it) }
+    /**
+     * The productId verified by Google (lineItems) is the source of truth; the
+     * client-supplied productId is only a fallback for legacy responses without
+     * line items. Trusting the client here would let a Basic purchase token
+     * activate a Premium plan.
+     */
+    private fun resolvePlanType(requestedProductId: String, subscription: SubscriptionPurchaseV2): PlanTypeEnum? {
+        val verifiedProductId = subscription.lineItems?.firstOrNull()?.productId
+        if (verifiedProductId != null) {
+            if (!verifiedProductId.equals(requestedProductId, ignoreCase = true)) {
+                log.warn { "Play verify: client claimed productId=$requestedProductId but token belongs to $verifiedProductId" }
+            }
+            return PlanTypeEnum.fromPlayProductId(verifiedProductId)
+        }
+        return PlanTypeEnum.fromPlayProductId(requestedProductId)
+    }
+
+    private fun ensureTokenNotLinkedToAnotherUser(userId: Long, purchaseToken: String) {
+        val existing = externalUserRepository.findBySubscriptionId(purchaseToken)
+        if (existing != null && existing.userId != userId) {
+            log.warn { "Play verify: purchaseToken already linked to user=${existing.userId}, rejected for user=$userId" }
+            throw PaymentException("Esta compra já está vinculada a outra conta FinSavior.")
+        }
     }
 
     private fun mapSubscriptionStatus(subscription: SubscriptionPurchaseV2): SubscriptionStatusEnum {

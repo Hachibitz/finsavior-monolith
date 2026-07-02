@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank
 data class GooglePlayVerifySubscriptionRequest(
     @field:NotBlank val productId: String,
     @field:NotBlank val purchaseToken: String,
+    /** Accepted for compatibility but ignored — the server always uses its configured package name. */
     val packageName: String? = null
 )
 
