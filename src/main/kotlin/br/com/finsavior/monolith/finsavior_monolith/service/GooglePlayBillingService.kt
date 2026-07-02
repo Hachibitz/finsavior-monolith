@@ -2,6 +2,7 @@ package br.com.finsavior.monolith.finsavior_monolith.service
 
 import br.com.finsavior.monolith.finsavior_monolith.config.properties.GooglePlayProperties
 import br.com.finsavior.monolith.finsavior_monolith.config.properties.PlanIdProperties
+import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentErrorCode
 import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentException
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.GooglePlayProductCatalogResponse
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.PlayBillingSkuDto
@@ -85,11 +86,17 @@ class GooglePlayBillingService(
         // Package name always comes from server config — never trust the client here.
         val subscription = fetchSubscription(properties.packageName, request.purchaseToken)
         val planType = resolvePlanType(request.productId, subscription)
-            ?: throw PaymentException("Produto Google Play não reconhecido: ${request.productId}")
+            ?: throw PaymentException(
+                "Produto Google Play não reconhecido: ${request.productId}",
+                PaymentErrorCode.PLAY_PRODUCT_UNKNOWN
+            )
 
         val status = mapSubscriptionStatus(subscription)
         if (status == SubscriptionStatusEnum.INACTIVE) {
-            throw PaymentException("Esta assinatura não está ativa na Google Play.")
+            throw PaymentException(
+                "Esta assinatura não está ativa na Google Play.",
+                PaymentErrorCode.PLAY_SUBSCRIPTION_INACTIVE
+            )
         }
 
         applyPlan(user, planType, status)
@@ -117,31 +124,51 @@ class GooglePlayBillingService(
             return
         }
 
-        // Resolve the local link first: unknown tokens (e.g. upgrades issuing a new
-        // token, or test purchases) are ignored without spending a Google API call —
-        // and without throwing, which would make Pub/Sub redeliver forever.
         val externalUser = externalUserRepository.findBySubscriptionId(purchaseToken)
+            ?: resolveLinkedTokenMigration(purchaseToken)
             ?: run {
-                log.warn { "RTDN for unknown purchaseToken — ignored" }
+                log.warn { "RTDN for unknown purchaseToken (no linked token match) — ignored" }
                 return
             }
 
         val user = userRepository.findById(externalUser.userId).orElse(null) ?: return
-        val subscription = fetchSubscription(properties.packageName, purchaseToken)
-        val status = mapSubscriptionStatus(subscription)
+        val subscription = fetchSubscription(properties.packageName, externalUser.subscriptionId!!)
+        applySubscriptionState(user, subscription)
+    }
 
-        when {
-            status == SubscriptionStatusEnum.INACTIVE -> downgradeUser(user)
-            else -> {
-                val productId = subscription.lineItems?.firstOrNull()?.productId
-                val planType = productId?.let { PlanTypeEnum.fromPlayProductId(it) }
-                if (planType != null) {
-                    applyPlan(user, planType, status)
-                } else {
-                    user.userPlan?.subscriptionStatus = status
-                    userRepository.save(user)
-                }
-            }
+    /**
+     * Plan upgrades/downgrades and resubscribes on the Play Store issue a NEW
+     * purchase token; the verified subscription carries the previous one as
+     * `linkedPurchaseToken`. When the incoming token is unknown locally, follow
+     * that link to migrate the user's record to the new token so future RTDNs
+     * (and cancellations) keep working without waiting for the app to re-verify.
+     */
+    private fun resolveLinkedTokenMigration(newToken: String): ExternalUser? {
+        val subscription = runCatching { fetchSubscription(properties.packageName, newToken) }
+            .getOrNull() ?: return null
+        val linkedToken = subscription.linkedPurchaseToken ?: return null
+        val externalUser = externalUserRepository.findBySubscriptionId(linkedToken) ?: return null
+
+        externalUser.subscriptionId = newToken
+        externalUser.externalUserId = subscription.latestOrderId
+        externalUserRepository.save(externalUser)
+        log.info { "RTDN: migrated user=${externalUser.userId} to new purchaseToken via linkedPurchaseToken" }
+        return externalUser
+    }
+
+    private fun applySubscriptionState(user: User, subscription: SubscriptionPurchaseV2) {
+        val status = mapSubscriptionStatus(subscription)
+        if (status == SubscriptionStatusEnum.INACTIVE) {
+            downgradeUser(user)
+            return
+        }
+        val productId = subscription.lineItems?.firstOrNull()?.productId
+        val planType = productId?.let { PlanTypeEnum.fromPlayProductId(it) }
+        if (planType != null) {
+            applyPlan(user, planType, status)
+        } else {
+            user.userPlan?.subscriptionStatus = status
+            userRepository.save(user)
         }
     }
 
@@ -149,20 +176,27 @@ class GooglePlayBillingService(
         val existing = externalUserRepository.findByUserId(userId)
         if (existing != null && existing.externalProvider == blocked) {
             throw PaymentException(
-                "Você já possui assinatura ativa por outro provedor. Cancele antes de assinar pela Google Play."
+                "Você já possui assinatura ativa por outro provedor. Cancele antes de assinar pela Google Play.",
+                PaymentErrorCode.SUBSCRIPTION_OTHER_PROVIDER
             )
         }
     }
 
     private fun fetchSubscription(packageName: String, purchaseToken: String): SubscriptionPurchaseV2 {
-        val client = publisher ?: throw PaymentException("Google Play Billing não configurado no servidor.")
+        val client = publisher ?: throw PaymentException(
+            "Google Play Billing não configurado no servidor.",
+            PaymentErrorCode.PLAY_BILLING_NOT_CONFIGURED
+        )
         return try {
             client.purchases().subscriptionsv2()
                 .get(packageName, purchaseToken)
                 .execute()
         } catch (e: Exception) {
             log.error(e) { "Failed to verify Google Play purchase" }
-            throw PaymentException("Não foi possível validar a compra na Google Play.")
+            throw PaymentException(
+                "Não foi possível validar a compra na Google Play.",
+                PaymentErrorCode.PLAY_VERIFY_FAILED
+            )
         }
     }
 
@@ -187,7 +221,10 @@ class GooglePlayBillingService(
         val existing = externalUserRepository.findBySubscriptionId(purchaseToken)
         if (existing != null && existing.userId != userId) {
             log.warn { "Play verify: purchaseToken already linked to user=${existing.userId}, rejected for user=$userId" }
-            throw PaymentException("Esta compra já está vinculada a outra conta FinSavior.")
+            throw PaymentException(
+                "Esta compra já está vinculada a outra conta FinSavior.",
+                PaymentErrorCode.PLAY_PURCHASE_LINKED_TO_OTHER_ACCOUNT
+            )
         }
     }
 

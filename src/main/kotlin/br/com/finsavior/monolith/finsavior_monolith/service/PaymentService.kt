@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentErrorCode
 import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PlanChangeException
 import br.com.finsavior.monolith.finsavior_monolith.integration.client.StripeClient
@@ -164,7 +165,10 @@ class PaymentService(
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
 
         if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
-            throw PaymentException("Assinaturas Google Play devem ser gerenciadas na Play Store.")
+            throw PaymentException(
+                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
         }
 
         val subscriptionId = externalUser.subscriptionId
@@ -188,7 +192,10 @@ class PaymentService(
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
 
         if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
-            throw PaymentException("Assinaturas Google Play devem ser gerenciadas na Play Store.")
+            throw PaymentException(
+                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
         }
 
         val subscriptionId = externalUser.subscriptionId

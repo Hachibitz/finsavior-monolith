@@ -12,6 +12,7 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.CommunicationExcep
 import br.com.finsavior.monolith.finsavior_monolith.exception.GoalNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.InsufficientFsCoinsException
 import br.com.finsavior.monolith.finsavior_monolith.exception.LoginException
+import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UnauthorizedException
 import br.com.finsavior.monolith.finsavior_monolith.exception.UserNotFoundException
 import br.com.finsavior.monolith.finsavior_monolith.exception.WhatsappIntegrationException
@@ -146,9 +147,22 @@ class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.message ?: "WhatsApp integration error")
     }
 
+    /**
+     * Payment errors carry a machine-readable [errorCode] so the frontend can
+     * translate them. Without this handler they'd fall into the generic
+     * RuntimeException handler and reach the client as an opaque 500.
+     */
+    @ExceptionHandler(PaymentException::class)
+    fun handlePaymentException(ex: PaymentException): ResponseEntity<ErrorResponse> {
+        log.warn { "Payment error [${ex.errorCode}]: ${ex.message}" }
+        return ResponseEntity
+            .status(HttpStatus.UNPROCESSABLE_ENTITY)
+            .body(ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.message ?: "Payment error", ex.errorCode.name))
+    }
+
     private fun buildErrorResponse(status: HttpStatus, msg: String): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(status).body(ErrorResponse(status.value(), msg))
     }
 
-    data class ErrorResponse(val code: Int, val msg: String)
+    data class ErrorResponse(val code: Int, val msg: String, val errorCode: String? = null)
 }
