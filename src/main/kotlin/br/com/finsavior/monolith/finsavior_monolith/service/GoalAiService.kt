@@ -16,6 +16,7 @@ import br.com.finsavior.monolith.finsavior_monolith.repository.GoalAdviceHistory
 import br.com.finsavior.monolith.finsavior_monolith.repository.GoalRepository
 import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviAssistant
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
 import dev.langchain4j.model.openai.OpenAiChatModel
@@ -34,7 +35,7 @@ class GoalAiService(
     @param:Value("\${fscoins-cost-for-goal-advice:5}") private val coinsCostForGoalAdvice: Long
 ) {
 
-    fun getGoalAdvice(goalId: String, useCoins: Boolean): Map<String, String> {
+    fun getGoalAdvice(goalId: String, useCoins: Boolean, locale: String): Map<String, String> {
         val user = userService.getUserByContext()
         val goal = goalRepository.findById(goalId)
             .orElseThrow { GoalNotFoundException("Meta com id $goalId não encontrada") }
@@ -58,7 +59,9 @@ class GoalAiService(
             .chatLanguageModel(chatModel)
             .build()
 
-        val systemMessage = SystemMessage.from("Você é um consultor financeiro. Dê conselhos diretos e motivacionais.")
+        val systemMessage = SystemMessage.from(
+            "Você é um consultor financeiro. Dê conselhos diretos e motivacionais.\n${LocaleSupport.aiLanguageInstruction(locale)}"
+        )
         val userMessage = UserMessage.from(prompt)
 
         val response = try {

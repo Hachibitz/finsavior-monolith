@@ -3,10 +3,12 @@ package br.com.finsavior.monolith.finsavior_monolith.controller
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.DocumentTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.service.AiDocumentService
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -27,11 +29,13 @@ class AiDocumentController(
         @RequestParam(value = "password", required = false) password: String?,
         @RequestParam(value = "isUsingCoins", required = false, defaultValue = "false") isUsingCoins: Boolean,
         @RequestParam(value = "cardId", required = false) cardId: String?,
-        @RequestParam(value = "targetDate", required = false) targetDate: String?
+        @RequestParam(value = "targetDate", required = false) targetDate: String?,
+        @RequestHeader(name = "Accept-Language", required = false) acceptLanguage: String?,
     ): ResponseEntity<List<AiBillExtractionDTO>> {
+        val locale = LocaleSupport.resolve(acceptLanguage)
         val bills = when (isUsingCoins) {
-            true -> aiDocumentService.processDocumentWithCoins(file, docType.name, password, cardId, targetDate)
-            false -> aiDocumentService.processDocument(file, docType.name, password, cardId, targetDate)
+            true -> aiDocumentService.processDocumentWithCoins(file, docType.name, password, cardId, targetDate, locale)
+            false -> aiDocumentService.processDocument(file, docType.name, password, cardId, targetDate, locale)
         }
         return ResponseEntity.ok(bills)
     }

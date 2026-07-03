@@ -31,6 +31,7 @@ import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSa
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
@@ -79,7 +80,7 @@ class AiAdviceService(
     }
 
     @Transactional
-    fun generateAiAdviceWithAutoPrompt(request: AiAdviceDTO): AiAdviceResponseDTO {
+    fun generateAiAdviceWithAutoPrompt(request: AiAdviceDTO, locale: String): AiAdviceResponseDTO {
         val user = userService.getUserByContext()
         val userId = user.id!!
         val now = LocalDateTime.now()
@@ -126,6 +127,7 @@ class AiAdviceService(
                 Use as ferramentas MCP sempre que precisar de dados.
                 NÃO explique que vai usar as ferramentas, apenas use-as silenciosamente.
                 Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
+                ${LocaleSupport.aiLanguageInstruction(locale)}
             """.trimIndent())
             val messages = listOf(
                 systemMessage,
@@ -343,7 +345,7 @@ class AiAdviceService(
         return aiAdvice
     }
 
-    fun getQuickInsight(date: String?): QuickInsightDTO {
+    fun getQuickInsight(date: String?, locale: String): QuickInsightDTO {
         val userId = getContextUserId()
 
         try {
@@ -364,7 +366,7 @@ class AiAdviceService(
                 }
             }
 
-            val systemPrompt = getQuickInsightSystemPrompt()
+            val systemPrompt = getQuickInsightSystemPrompt(locale)
             val accountGuide = getAccountGuide()
             val userPrompt = buildQuickInsightPrompt(summary, accountGuide)
 
@@ -408,7 +410,7 @@ class AiAdviceService(
         }
     }
 
-    private fun getQuickInsightSystemPrompt(): SystemMessage = SystemMessage.from(
+    private fun getQuickInsightSystemPrompt(locale: String): SystemMessage = SystemMessage.from(
         """
             Você é o Savi, um assistente financeiro inteligente, motivador e direto. Sua tarefa é analisar os dados financeiros do usuário (receitas, despesas e categorias) para o mês solicitado e gerar um único insight curto e impactante.
             Regras:
@@ -420,6 +422,7 @@ class AiAdviceService(
 
             Exemplo de resposta:
             "Sua taxa de poupança está excelente! Você economizou 35% da sua renda este mês. Que tal investir esse excedente?"
+            ${LocaleSupport.aiLanguageInstruction(locale)}
         """.trimIndent()
     )
 

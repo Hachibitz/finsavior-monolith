@@ -7,6 +7,7 @@ import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiBillExtractionDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.AudioProcessingStatus
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import br.com.finsavior.monolith.finsavior_monolith.util.MediaUploadValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
@@ -43,7 +44,11 @@ class AiTranscriptionService(
     private val objectMapper = jacksonObjectMapper()
     private val log: KLogger = KotlinLogging.logger {  }
 
-    fun processAudioToBill(audioFile: MultipartFile, isUsingCoins: Boolean): AiBillExtractionDTO {
+    fun processAudioToBill(
+        audioFile: MultipartFile,
+        isUsingCoins: Boolean,
+        locale: String = LocaleSupport.resolve(null),
+    ): AiBillExtractionDTO {
         val userId = userService.getUserByContext().id!!
 
         if (isUsingCoins) {
@@ -55,8 +60,8 @@ class AiTranscriptionService(
         val historyRecord = audioProcessingHistoryService.reserveAudioUsage(isUsingCoins)
 
         try {
-            val transcription = transcribeAudio(audioFile)
-            val resultDTO = extractDataFromText(transcription)
+            val transcription = transcribeAudio(audioFile, locale)
+            val resultDTO = extractDataFromText(transcription, locale)
 
             log.info("M=processAudioToBill, I=Transcrição bem-sucedida.")
             audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.SUCCESS)
@@ -68,28 +73,35 @@ class AiTranscriptionService(
         }
     }
 
-    fun transcribeOnly(audioFile: MultipartFile, isUsingCoins: Boolean): String {
+    fun transcribeOnly(
+        audioFile: MultipartFile,
+        isUsingCoins: Boolean,
+        locale: String = LocaleSupport.resolve(null),
+    ): String {
         validateAudioProcessingLimit(isUsingCoins)
-        return transcribeAudio(audioFile)
+        return transcribeAudio(audioFile, locale)
     }
 
-    private fun transcribeAudio(audioFile: MultipartFile): String {
+    private fun transcribeAudio(audioFile: MultipartFile, locale: String = LocaleSupport.resolve(null)): String {
         log.info("M=transcribeAudio, I=Iniciando processo. Arquivo recebido: ${audioFile.originalFilename}, Tamanho: ${audioFile.size}")
 
         validateAudioUpload(audioFile)
 
         val mp3File = convertToMp3(audioFile)
-        return sendToOpenAI(mp3File)
+        return sendToOpenAI(mp3File, locale)
     }
 
-    fun transcribeAudioFromFile(audioFile: File): String {
+    fun transcribeAudioFromFile(
+        audioFile: File,
+        locale: String = LocaleSupport.resolve(null),
+    ): String {
         log.info("M=transcribeAudioFromFile, I=Iniciando processo. Arquivo recebido: ${audioFile.name}, Tamanho: ${audioFile.length()}")
 
         validateAudioFile(audioFile)
 
         val mp3File = convertToMp3(audioFile)
         try {
-            return sendToOpenAI(mp3File)
+            return sendToOpenAI(mp3File, locale)
         } finally {
             try {
                 Files.deleteIfExists(audioFile.toPath())
@@ -99,10 +111,10 @@ class AiTranscriptionService(
         }
     }
 
-    private fun sendToOpenAI(mp3File: File): String {
+    private fun sendToOpenAI(mp3File: File, locale: String): String {
         try {
             log.info("M=sendToOpenAI, I=Enviando MP3 convertido para OpenAI.")
-            val requestEntity = createOpenAiTranscriptionRequest(mp3File)
+            val requestEntity = createOpenAiTranscriptionRequest(mp3File, locale)
             val response = restTemplate.postForEntity(OpenAiModelConfig.AUDIO_TRANSCRIPTIONS_API_URL, requestEntity, Map::class.java)
             val transcription = extractTranscriptionFromResponse(response.body)
 
@@ -120,7 +132,7 @@ class AiTranscriptionService(
         }
     }
 
-    private fun createOpenAiTranscriptionRequest(mp3File: File): HttpEntity<LinkedMultiValueMap<String, Any>> {
+    private fun createOpenAiTranscriptionRequest(mp3File: File, locale: String): HttpEntity<LinkedMultiValueMap<String, Any>> {
         val headers = HttpHeaders()
         headers.contentType = MediaType.MULTIPART_FORM_DATA
         headers.setBearerAuth(apiKey)
@@ -128,7 +140,7 @@ class AiTranscriptionService(
         val body = LinkedMultiValueMap<String, Any>().apply {
             add("file", FileSystemResource(mp3File))
             add("model", OpenAiModelConfig.TRANSCRIPTION_MODEL)
-            add("language", "pt")
+            add("language", LocaleSupport.whisperCode(locale))
         }
         return HttpEntity(body, headers)
     }
@@ -185,13 +197,13 @@ class AiTranscriptionService(
         }
     }
 
-    fun extractDataFromText(text: String): AiBillExtractionDTO {
+    fun extractDataFromText(text: String, locale: String = LocaleSupport.resolve(null)): AiBillExtractionDTO {
         log.info("M=extractDataFromText, I=Iniciando extração de dados do texto.")
         val headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
         headers.setBearerAuth(apiKey)
 
-        val prompt = getBillFromWhisperPrompt(text)
+        val prompt = getBillFromWhisperPrompt(text, locale)
 
         val requestBody = mapOf(
             "model" to OpenAiModelConfig.DEFAULT_CHAT_MODEL,
@@ -272,7 +284,7 @@ class AiTranscriptionService(
         log.info("Deducted $coinsCostForAudio coins for user: $userId for audio processing")
     }
 
-    private fun getBillFromWhisperPrompt(text: String): String {
+    private fun getBillFromWhisperPrompt(text: String, locale: String): String {
         val today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
         val categories = categoryService.listCategories().joinToString(", ") { it.name }
 
@@ -321,6 +333,8 @@ class AiTranscriptionService(
             }
 
             Texto: "$text"
+
+            ${LocaleSupport.aiLanguageInstruction(locale)}
         """.trimIndent()
     }
 }

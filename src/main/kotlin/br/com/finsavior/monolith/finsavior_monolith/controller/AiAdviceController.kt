@@ -5,12 +5,14 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAdviceResponseDT
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.AiAnalysisDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.QuickInsightDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.AiAdviceService
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -24,8 +26,11 @@ class AiAdviceController(
 
     @PostMapping("/generate-ai-advice-and-insights")
     @ResponseStatus(HttpStatus.OK)
-    fun generateAiAdviceAndInsights(@RequestBody aiAdvice: AiAdviceDTO): AiAdviceResponseDTO =
-        service.generateAiAdviceWithAutoPrompt(aiAdvice)
+    fun generateAiAdviceAndInsights(
+        @RequestBody aiAdvice: AiAdviceDTO,
+        @RequestHeader(name = "Accept-Language", required = false) acceptLanguage: String?,
+    ): AiAdviceResponseDTO =
+        service.generateAiAdviceWithAutoPrompt(aiAdvice, LocaleSupport.resolve(acceptLanguage))
 
     @GetMapping("/get-ai-advice-and-insights")
     @ResponseStatus(HttpStatus.OK)
@@ -49,6 +54,9 @@ class AiAdviceController(
 
     @GetMapping("/quick-insight")
     @ResponseStatus(HttpStatus.OK)
-    fun getQuickInsight(@RequestParam(required = false) date: String?): QuickInsightDTO =
-        service.getQuickInsight(date)
+    fun getQuickInsight(
+        @RequestParam(required = false) date: String?,
+        @RequestHeader(name = "Accept-Language", required = false) acceptLanguage: String?,
+    ): QuickInsightDTO =
+        service.getQuickInsight(date, LocaleSupport.resolve(acceptLanguage))
 }

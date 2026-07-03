@@ -2,9 +2,11 @@ package br.com.finsavior.monolith.finsavior_monolith.controller
 
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.GoalAdviceDTO
 import br.com.finsavior.monolith.finsavior_monolith.service.GoalAiService
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -20,9 +22,10 @@ class GoalAiController(
     @ResponseStatus(HttpStatus.OK)
     fun getGoalAdvice(
         @PathVariable goalId: String,
-        @RequestParam(defaultValue = "false") useCoins: Boolean
+        @RequestParam(defaultValue = "false") useCoins: Boolean,
+        @RequestHeader(name = "Accept-Language", required = false) acceptLanguage: String?,
     ): Map<String, String> {
-        return goalAiService.getGoalAdvice(goalId, useCoins)
+        return goalAiService.getGoalAdvice(goalId, useCoins, LocaleSupport.resolve(acceptLanguage))
     }
 
     @GetMapping("/{goalId}/history")

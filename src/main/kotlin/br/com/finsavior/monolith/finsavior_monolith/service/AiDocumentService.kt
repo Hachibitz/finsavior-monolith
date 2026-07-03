@@ -8,6 +8,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.DocumentProcess
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.DocumentProcessingHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import br.com.finsavior.monolith.finsavior_monolith.util.MediaUploadValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KLogger
@@ -48,7 +49,8 @@ class AiDocumentService(
         docType: String,
         password: String?,
         cardId: String? = null,
-        targetDate: String? = null
+        targetDate: String? = null,
+        locale: String = LocaleSupport.resolve(null),
     ): List<AiBillExtractionDTO> {
         val user = userService.getUserByContext()
         val userId = user.id!!
@@ -56,7 +58,7 @@ class AiDocumentService(
         validateImportLimit(user, userId)
 
         val rawText = extractTextFromPdf(file, password)
-        val bills = extractFinancialData(rawText, docType)
+        val bills = extractFinancialData(rawText, docType, locale)
             .map { bill ->
                 bill.copy(
                     cardId = cardId,
@@ -75,7 +77,8 @@ class AiDocumentService(
         docType: String,
         password: String?,
         cardId: String? = null,
-        targetDate: String? = null
+        targetDate: String? = null,
+        locale: String = LocaleSupport.resolve(null),
     ): List<AiBillExtractionDTO> {
         val user = userService.getUserByContext()
         val userId = user.id!!
@@ -88,7 +91,7 @@ class AiDocumentService(
         fsCoinService.spendCoins(fsCoinService.getCoinsCostForDocumentImport(), userId)
 
         val rawText = extractTextFromPdf(file, password)
-        val bills = extractFinancialData(rawText, docType)
+        val bills = extractFinancialData(rawText, docType, locale)
             .map { bill ->
                 bill.copy(
                     cardId = cardId,
@@ -170,7 +173,7 @@ class AiDocumentService(
         }
     }
 
-    private fun extractFinancialData(text: String, docType: String): List<AiBillExtractionDTO> {
+    private fun extractFinancialData(text: String, docType: String, locale: String): List<AiBillExtractionDTO> {
         try {
             MediaUploadValidator.validateExtractedPdfTextLength(text)
         } catch (e: IllegalArgumentException) {
@@ -181,7 +184,7 @@ class AiDocumentService(
 
         val headers = buildHeaders()
         val prompt = getPromptByDocType(text, docType)
-        val responseContent = buildRequestBody(prompt)
+        val responseContent = buildRequestBody(prompt, locale)
             .let { requestBody -> sendOpenAiRequest(requestBody, headers) }
 
         log.info("AI response received. Processing JSON...")
@@ -194,10 +197,10 @@ class AiDocumentService(
         setBearerAuth(apiKey)
     }
 
-    private fun buildRequestBody(prompt: String): Map<String, Any> = mapOf(
+    private fun buildRequestBody(prompt: String, locale: String): Map<String, Any> = mapOf(
         "model" to OpenAiModelConfig.DEFAULT_CHAT_MODEL,
         "messages" to listOf(
-            mapOf("role" to "system", "content" to SYSTEM_PROMPT),
+            mapOf("role" to "system", "content" to "$SYSTEM_PROMPT\n${LocaleSupport.aiLanguageInstruction(locale)}"),
             mapOf("role" to "user", "content" to prompt)
         ),
         "response_format" to mapOf("type" to "json_object")
