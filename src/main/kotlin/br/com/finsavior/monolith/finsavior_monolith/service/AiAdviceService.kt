@@ -31,6 +31,7 @@ import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSa
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getAnalysisTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
@@ -69,12 +70,17 @@ class AiAdviceService(
 
     private data class QuickInsightCacheEntry(val insight: QuickInsightDTO, val baseline: BigDecimal)
 
-    fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO =
-        aiAdviceRepository.findById(aiAdviceId)
-            .orElseThrow { AiAdviceException("Análise não encontrada") }.toAiAnalysisDTO()
+    fun getAiAdviceById(aiAdviceId: Long): AiAnalysisDTO {
+        val advice = aiAdviceRepository.findById(aiAdviceId)
+            .orElseThrow { AiAdviceException("Análise não encontrada") }
+        if (advice.userId != userService.getUserByContext().id) {
+            throw AiAdviceException("Análise não encontrada")
+        }
+        return advice.toAiAnalysisDTO()
+    }
 
     @Transactional
-    fun generateAiAdviceWithAutoPrompt(request: AiAdviceDTO): AiAdviceResponseDTO {
+    fun generateAiAdviceWithAutoPrompt(request: AiAdviceDTO, locale: String): AiAdviceResponseDTO {
         val user = userService.getUserByContext()
         val userId = user.id!!
         val now = LocalDateTime.now()
@@ -121,6 +127,7 @@ class AiAdviceService(
                 Use as ferramentas MCP sempre que precisar de dados.
                 NÃO explique que vai usar as ferramentas, apenas use-as silenciosamente.
                 Formate datas como 'Mmm yyyy' (ex: 'Oct 2025').
+                ${LocaleSupport.aiLanguageInstruction(locale)}
             """.trimIndent())
             val messages = listOf(
                 systemMessage,
@@ -207,7 +214,13 @@ class AiAdviceService(
 
     fun deleteAnalysis(analysisId: Long) {
         try {
+            val advice = aiAdviceRepository.findById(analysisId).orElse(null) ?: return
+            if (advice.userId != userService.getUserByContext().id) {
+                throw AiAdviceException("Análise não encontrada")
+            }
             aiAdviceRepository.deleteById(analysisId)
+        } catch (e: AiAdviceException) {
+            throw e
         } catch (e: Exception) {
             AiExceptionSupport.logAdviceDeleteFailure(analysisId, e)
             throw AiAdviceException(AiErrorMessages.GENERIC_UNAVAILABLE, e)
@@ -332,7 +345,7 @@ class AiAdviceService(
         return aiAdvice
     }
 
-    fun getQuickInsight(date: String?): QuickInsightDTO {
+    fun getQuickInsight(date: String?, locale: String): QuickInsightDTO {
         val userId = getContextUserId()
 
         try {
@@ -353,7 +366,7 @@ class AiAdviceService(
                 }
             }
 
-            val systemPrompt = getQuickInsightSystemPrompt()
+            val systemPrompt = getQuickInsightSystemPrompt(locale)
             val accountGuide = getAccountGuide()
             val userPrompt = buildQuickInsightPrompt(summary, accountGuide)
 
@@ -397,7 +410,7 @@ class AiAdviceService(
         }
     }
 
-    private fun getQuickInsightSystemPrompt(): SystemMessage = SystemMessage.from(
+    private fun getQuickInsightSystemPrompt(locale: String): SystemMessage = SystemMessage.from(
         """
             Você é o Savi, um assistente financeiro inteligente, motivador e direto. Sua tarefa é analisar os dados financeiros do usuário (receitas, despesas e categorias) para o mês solicitado e gerar um único insight curto e impactante.
             Regras:
@@ -409,6 +422,7 @@ class AiAdviceService(
 
             Exemplo de resposta:
             "Sua taxa de poupança está excelente! Você economizou 35% da sua renda este mês. Que tal investir esse excedente?"
+            ${LocaleSupport.aiLanguageInstruction(locale)}
         """.trimIndent()
     )
 

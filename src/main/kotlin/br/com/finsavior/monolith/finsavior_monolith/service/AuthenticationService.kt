@@ -8,12 +8,14 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.LoginRequestDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.SignUpResponseDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.Audit
+import br.com.finsavior.monolith.finsavior_monolith.model.entity.PasswordResetToken
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserPlan
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.UserProfile
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.RoleEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toUser
+import br.com.finsavior.monolith.finsavior_monolith.repository.PasswordResetTokenRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.RoleRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
@@ -36,6 +38,9 @@ import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.time.LocalDateTime
 
 @Service
 class AuthenticationService(
@@ -47,7 +52,8 @@ class AuthenticationService(
     private val tokenProvider: TokenProvider,
     private val emailService: EmailService,
     private val userSecurityDetails: UserSecurityDetails,
-    private val firebaseAuthService: FirebaseAuthService
+    private val firebaseAuthService: FirebaseAuthService,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
@@ -59,9 +65,10 @@ class AuthenticationService(
 
     fun login(loginRequest: LoginRequestDTO, request: HttpServletRequest, response: HttpServletResponse): ResponseEntity<Map<String, String>> {
         val trimmedUsername = loginRequest.username.trim()
+        // Same message as bad-password to avoid username/e-mail enumeration.
         val user = userRepository.findByUsername(trimmedUsername)
             ?: userRepository.findByEmail(trimmedUsername)
-            ?: throw LoginException("Usuário ou e-mail não encontrado")
+            ?: throw LoginException("Credenciais inválidas")
 
         val authentication = authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken(user.username, loginRequest.password)
@@ -153,36 +160,64 @@ class AuthenticationService(
         throw AuthTokenException("Token não validado!", HttpStatus.UNAUTHORIZED)
     }
 
+    @Transactional
     fun passwordRecovery(email: String) {
-        val user = userRepository.findByEmail(email)
-            ?: throw IllegalArgumentException("Usuário não encontrado com o e-mail fornecido.")
+        // Always return success to the caller: a different response for unknown
+        // e-mails would allow account enumeration.
+        val user = userRepository.findByEmail(email) ?: run {
+            log.info("Password recovery requested for unknown e-mail")
+            return
+        }
 
-        val token = generateRecoveryToken(user)
-        emailService.sendPasswordRecoveryEmail(email, token)
+        val rawToken = generateRecoveryToken(user)
+        emailService.sendPasswordRecoveryEmail(email, rawToken)
     }
 
+    @Transactional
     fun resetPassword(token: String, newPassword: String) {
-        val user = validateRecoveryToken(token)
-            ?: throw IllegalArgumentException("Token inválido ou expirado.")
+        val resetToken = passwordResetTokenRepository.findByToken(hashToken(token))
+            ?: throw PasswordRecoveryException("Token inválido ou expirado.")
+
+        if (resetToken.expiryDate.isBefore(LocalDateTime.now())) {
+            passwordResetTokenRepository.delete(resetToken)
+            throw PasswordRecoveryException("Token inválido ou expirado.")
+        }
 
         if (!PasswordValidator.isValid(newPassword)) {
             throw PasswordRecoveryException("Senha não atende aos requisitos mínimos")
         }
 
+        val user = resetToken.user
         user.password = passwordEncoder.encode(newPassword)
         userRepository.save(user)
+        // Single use: consume the token immediately after a successful reset.
+        passwordResetTokenRepository.delete(resetToken)
     }
 
+    /**
+     * Generates a single-use, short-lived random token (NOT a session JWT).
+     * Only the SHA-256 hash is persisted, so a DB leak does not expose usable tokens.
+     */
     private fun generateRecoveryToken(user: User): String {
-        return tokenProvider.generateToken(
-            UsernamePasswordAuthenticationToken(user.username, null, emptyList())
+        val bytes = ByteArray(32)
+        SecureRandom().nextBytes(bytes)
+        val rawToken = bytes.joinToString("") { "%02x".format(it) }
+
+        passwordResetTokenRepository.deleteByUserId(user.id!!)
+        passwordResetTokenRepository.save(
+            PasswordResetToken(
+                token = hashToken(rawToken),
+                user = user,
+                expiryDate = LocalDateTime.now().plusMinutes(30)
+            )
         )
+        return rawToken
     }
 
-    private fun validateRecoveryToken(token: String): User? {
-        val username = tokenProvider.getUsernameFromToken(token)
-        return userRepository.findByUsername(username)
-    }
+    private fun hashToken(rawToken: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(rawToken.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     private fun setCookieProperties(
         tokenCookie: Cookie, refreshTokenCookie: Cookie,

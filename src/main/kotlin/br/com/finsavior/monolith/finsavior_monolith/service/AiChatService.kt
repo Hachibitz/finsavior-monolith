@@ -22,6 +22,7 @@ import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getDa
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
+import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.ChatMessage
 import dev.langchain4j.data.message.SystemMessage
@@ -52,7 +53,7 @@ class AiChatService(
 
     private val log: KLogger = KotlinLogging.logger {}
 
-    fun askQuestion(userId: Long, question: String): Response<AiMessage> {
+    fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null)): Response<AiMessage> {
         log.info("Asking question to Savi Assistant for user {}", userId)
 
         val aiServices = AiServices
@@ -62,7 +63,7 @@ class AiChatService(
             .tools(mcpToolsConfig)
             .build()
 
-        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, question)
+        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, question, locale)
 
         return try {
             aiServices.chat(messages)
@@ -72,7 +73,10 @@ class AiChatService(
     }
 
     @Transactional
-    fun chatWithAssistant(request: AiChatRequest): ResponseEntity<AiChatResponse> {
+    fun chatWithAssistant(
+        request: AiChatRequest,
+        locale: String = LocaleSupport.resolve(null),
+    ): ResponseEntity<AiChatResponse> {
         log.info("Incoming chat request: ${request.question}")
         val user = userService.getUserByContext()
         val userId = user.id!!
@@ -90,7 +94,7 @@ class AiChatService(
             throw ChatbotException("Pergunta inválida.")
         }
 
-        val chatResponse = askQuestion(userId, question)
+        val chatResponse = askQuestion(userId, question, locale)
         val answer = chatResponse.content().text()
 
         val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
@@ -119,8 +123,8 @@ class AiChatService(
             .asReversed()
             .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
 
-    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, question: String): List<ChatMessage> {
-        val systemMessage = buildChatSystemMessage(userId)
+    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, question: String, locale: String): List<ChatMessage> {
+        val systemMessage = buildChatSystemMessage(userId, locale)
 
         val historyMessages = getUserChatHistoryDTO(userId, 0, OpenAiModelConfig.CHAT_HISTORY_EXCHANGES)
             .flatMap { entry ->
@@ -135,7 +139,7 @@ class AiChatService(
         return listOf(systemMessage) + historyMessages + UserMessage.from(question)
     }
 
-    private fun buildChatSystemMessage(userId: Long): SystemMessage {
+    private fun buildChatSystemMessage(userId: Long, locale: String): SystemMessage {
         val currentDate = LocalDateTime.now()
         val billTableGuide = """
             # Guia de Tipo de Conta (billTable)
@@ -171,6 +175,8 @@ class AiChatService(
             ${getAccountGuide()}
 
             $billTableGuide
+
+            ${LocaleSupport.aiLanguageInstruction(locale)}
             """.trimIndent()
         )
     }

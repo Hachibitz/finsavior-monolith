@@ -47,8 +47,8 @@ class PaymentController(
 
     @PostMapping("/subscription/customer-portal")
     @ResponseStatus(HttpStatus.OK)
-    fun createCustomerPortalSession(@RequestParam email: String): Map<String, String> =
-        paymentService.createCustomerPortalSession(email)
+    fun createCustomerPortalSession(@RequestParam(required = false) email: String?): Map<String, String> =
+        paymentService.createCustomerPortalSession(email ?: "")
 
     @GetMapping("/subscription/plans")
     @ResponseStatus(HttpStatus.OK)

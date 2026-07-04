@@ -35,6 +35,8 @@ val wsSchildAudioConverterVersion = "3.5.0"
 val pdfBoxVersion = "2.0.29"
 val resilience4jVersion = "2.0.0"
 val twilioSdkVersion = "10.9.2"
+val googleApiAndroidPublisherVersion = "v3-rev20250318-2.0.0"
+val googleAuthLibraryVersion = "1.30.1"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -65,6 +67,8 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:$pdfBoxVersion")
     implementation("io.github.resilience4j:resilience4j-ratelimiter:$resilience4jVersion")
 	implementation("com.twilio.sdk:twilio:${twilioSdkVersion}")
+	implementation("com.google.apis:google-api-services-androidpublisher:${googleApiAndroidPublisherVersion}")
+	implementation("com.google.auth:google-auth-library-oauth2-http:${googleAuthLibraryVersion}")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")

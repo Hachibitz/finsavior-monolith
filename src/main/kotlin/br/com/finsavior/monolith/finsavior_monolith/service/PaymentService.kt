@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentErrorCode
 import br.com.finsavior.monolith.finsavior_monolith.exception.PaymentException
 import br.com.finsavior.monolith.finsavior_monolith.exception.PlanChangeException
 import br.com.finsavior.monolith.finsavior_monolith.integration.client.StripeClient
@@ -118,12 +119,16 @@ class PaymentService(
     }
 
     fun createCustomerPortalSession(email: String): Map<String, String> {
+        // The client-supplied email is ignored: the portal must always belong to
+        // the authenticated user, otherwise anyone could open another customer's
+        // Stripe billing portal just by guessing their e-mail.
+        val ownEmail = userService.getUserByContext().email
         val customer = Customer.list(
             CustomerListParams.builder()
-                .setEmail(email)
+                .setEmail(ownEmail)
                 .setLimit(1)
                 .build()
-        ).data.firstOrNull() ?: throw IllegalStateException("Cliente não encontrado para o e-mail: $email")
+        ).data.firstOrNull() ?: throw IllegalStateException("Cliente Stripe não encontrado para o usuário autenticado")
 
         val params = com.stripe.param.billingportal.SessionCreateParams.builder()
             .setCustomer(customer.id)
@@ -163,6 +168,13 @@ class PaymentService(
         val externalUser = externalUserRepository.findByUserId(user.id!!)
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
 
+        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
+            throw PaymentException(
+                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
+        }
+
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
 
@@ -182,6 +194,13 @@ class PaymentService(
 
         val externalUser = externalUserRepository.findByUserId(user.id!!)
             ?: throw IllegalArgumentException("Usuário externo não encontrado")
+
+        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
+            throw PaymentException(
+                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
+        }
 
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")

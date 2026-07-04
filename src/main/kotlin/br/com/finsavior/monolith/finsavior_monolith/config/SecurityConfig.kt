@@ -83,8 +83,9 @@ class SecurityConfig(
                         "/auth/validate-token",
                         "/terms-and-privacy/**",
                         "/stripe/payment/webhook",
+                        "/payment/google-play/rtdn",
                         "/whatsapp/webhook",
-                        "/contact",
+                        "/contact/public",
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
@@ -137,7 +138,6 @@ class SecurityConfig(
         corsConfiguration.allowedOrigins = ALLOWED_ORIGINS.apply {
             val allowedOriginsFromEnv = allowedOrigins.split(",")
             allowedOriginsFromEnv.forEach { origin -> add(origin) }
-            println("ORIGENS PERMITIDAS PELO CORS: $allowedOriginsFromEnv")
         }
         corsConfiguration.allowedMethods = listOf(
             HttpMethod.GET.name(),

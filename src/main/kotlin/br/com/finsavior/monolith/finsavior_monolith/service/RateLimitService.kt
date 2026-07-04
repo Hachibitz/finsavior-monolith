@@ -22,8 +22,24 @@ class RateLimitService {
         registry = RateLimiterRegistry.of(config)
     }
 
+    /** Default limiter: 3 requests per hour per key. */
     fun tryConsume(key: String): Boolean {
         val limiter = limiters.computeIfAbsent(key) { registry.rateLimiter(it) }
+        return limiter.acquirePermission()
+    }
+
+    /** Custom limiter per key (e.g. login attempts, coin earning). */
+    fun tryConsume(key: String, limitForPeriod: Int, refreshPeriod: Duration): Boolean {
+        val limiter = limiters.computeIfAbsent(key) {
+            registry.rateLimiter(
+                it,
+                RateLimiterConfig.custom()
+                    .limitForPeriod(limitForPeriod)
+                    .limitRefreshPeriod(refreshPeriod)
+                    .timeoutDuration(Duration.ZERO)
+                    .build()
+            )
+        }
         return limiter.acquirePermission()
     }
 }
