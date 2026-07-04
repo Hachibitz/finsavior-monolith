@@ -28,6 +28,8 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.ServiceAccountCredentials
 import mu.KLogger
 import mu.KotlinLogging
+import org.springframework.boot.context.event.ApplicationReadyEvent
+import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.io.ByteArrayInputStream
@@ -50,6 +52,15 @@ class GooglePlayBillingService(
     private val log: KLogger = KotlinLogging.logger {}
 
     private val publisher: AndroidPublisher? by lazy { buildPublisher() }
+
+    @EventListener(ApplicationReadyEvent::class)
+    fun warmUpPublisherOnStartup() {
+        if (!isServiceAccountConfigured()) {
+            log.warn { "Google Play Billing not configured — verification disabled" }
+            return
+        }
+        publisher
+    }
 
     fun getProductCatalog(): GooglePlayProductCatalogResponse =
         GooglePlayProductCatalogResponse(
@@ -215,7 +226,7 @@ class GooglePlayBillingService(
                 "Google Play subscriptionsv2.get failed: status=${e.statusCode} reason=$reason package=$packageName"
             }
             throw when (e.statusCode) {
-                403 -> PaymentException(
+                401, 403 -> PaymentException(
                     "Conta de serviço sem permissão na Google Play. Verifique Play Console > Acesso à API.",
                     e,
                     PaymentErrorCode.PLAY_BILLING_PERMISSION_DENIED
