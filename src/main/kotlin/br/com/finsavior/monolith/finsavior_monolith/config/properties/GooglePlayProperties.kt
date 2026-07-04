@@ -7,6 +7,11 @@ import org.springframework.stereotype.Component
 @ConfigurationProperties(prefix = "google.play")
 class GooglePlayProperties {
     var packageName: String = "br.com.finsavior"
+    /**
+     * Path to the service account JSON file on disk (preferred in production —
+     * avoids escaping issues when the JSON is embedded in a .properties file).
+     */
+    var serviceAccountJsonPath: String = ""
     /** JSON content of the Google Play service account (Android Publisher API). */
     var serviceAccountJson: String = ""
     /** Shared secret for Real-Time Developer Notifications (query-param fallback). */
