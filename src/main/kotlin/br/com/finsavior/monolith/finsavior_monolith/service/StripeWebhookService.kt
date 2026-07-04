@@ -6,8 +6,10 @@ import br.com.finsavior.monolith.finsavior_monolith.exception.WebhookException
 import br.com.finsavior.monolith.finsavior_monolith.integration.client.StripeClient
 import br.com.finsavior.monolith.finsavior_monolith.integration.dto.StripeCheckoutSessionCompletedEvent
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.WebhookRequestDTO
+import br.com.finsavior.monolith.finsavior_monolith.model.entity.ExternalUser
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.EventTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.ExternalProvider
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStatusEnum
 import br.com.finsavior.monolith.finsavior_monolith.model.mapper.toExternalUser
@@ -55,6 +57,11 @@ class StripeWebhookService(
                 .orElseThrow { IllegalArgumentException("Usuário não encontrado") }
             val previousExternalUser = externalUserRepository.findByUserId(user.id)
             val alreadyUsedTrial = previousExternalUser?.isTrialUsed == true
+
+            if (shouldIgnoreStripeWebhook(previousExternalUser, webhookRequestDTO)) {
+                log.info { "Ignoring stale Stripe webhook type=${webhookRequestDTO.eventType} user=${user.id} currentProvider=${previousExternalUser?.externalProvider}" }
+                return@runCatching
+            }
 
             when (webhookRequestDTO.eventType) {
                 EventTypeEnum.CHECKOUT_SESSION_COMPLETED -> {
@@ -126,6 +133,15 @@ class StripeWebhookService(
         }.getOrElse { e ->
             throw PlanChangeException(e.message.toString(), e)
         }
+    }
+
+    private fun shouldIgnoreStripeWebhook(currentExternalUser: ExternalUser?, webhookRequestDTO: WebhookRequestDTO): Boolean {
+        if (currentExternalUser == null) return false
+        if (currentExternalUser.externalProvider != ExternalProvider.STRIPE) return true
+
+        val currentSubscriptionId = currentExternalUser.subscriptionId
+        val incomingSubscriptionId = webhookRequestDTO.subscriptionId
+        return currentSubscriptionId != null && incomingSubscriptionId != null && currentSubscriptionId != incomingSubscriptionId
     }
 
 

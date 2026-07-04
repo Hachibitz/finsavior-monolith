@@ -77,10 +77,12 @@ class PaymentService(
     }
 
     fun createCheckoutSession(planType: String, email: String, hostedCheckout: Boolean = false): CheckoutSessionDTO {
+        val user = userService.getUserByContext()
         val productId = getPlanIdByPlanType(planType)
         val priceId = getPriceIdByProductId(productId)
-        val userId = userService.getUserByContext().id!!
+        val userId = user.id!!
         val externalUser = externalUserRepository.findByUserId(userId)
+        ensureNoConflictingProvider(user, externalUser, ExternalProvider.GOOGLE_PLAY)
 
         val sessionBuilder = SessionCreateParams.builder()
             .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
@@ -142,8 +144,7 @@ class PaymentService(
 
     fun updateSubscription(planType: String, email: String) {
         val user = userService.getUserByContext()
-        val externalUser = externalUserRepository.findByUserId(user.id!!)
-            ?: throw IllegalArgumentException("Usuário externo não encontrado")
+        val externalUser = requireStripeSubscription(user)
         val subscriptionId = externalUser.subscriptionId ?: throw IllegalStateException("Usuário não possui assinatura ativa")
 
         val stripeSubscription = stripeClient.getSubscription(subscriptionId)
@@ -163,44 +164,27 @@ class PaymentService(
     }
 
     fun cancelSubscription(immediate: Boolean) {
-        val user = userService.getUserByContext()
-
-        val externalUser = externalUserRepository.findByUserId(user.id!!)
-            ?: throw IllegalArgumentException("Usuário externo não encontrado")
-
-        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
+        if (immediate) {
             throw PaymentException(
-                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
-                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+                "Cancelamento imediato só é permitido durante a troca para a Google Play.",
+                PaymentErrorCode.GENERIC
             )
         }
 
+        val user = userService.getUserByContext()
+        val externalUser = requireStripeSubscription(user)
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
 
-        if (immediate) {
-            stripeClient.deleteSubscriptionImmediately(subscriptionId)
-            user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.INACTIVE
-        } else {
-            stripeClient.cancelAtPeriodEnd(subscriptionId, true)
-            user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.CANCELED_AT_PERIOD_END
-        }
-        
+        stripeClient.cancelAtPeriodEnd(subscriptionId, true)
+        user.userPlan?.subscriptionStatus = SubscriptionStatusEnum.CANCELED_AT_PERIOD_END
         userRepository.save(user)
     }
 
     fun reactivateSubscription() {
         val user = userService.getUserByContext()
 
-        val externalUser = externalUserRepository.findByUserId(user.id!!)
-            ?: throw IllegalArgumentException("Usuário externo não encontrado")
-
-        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY) {
-            throw PaymentException(
-                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
-                PaymentErrorCode.PLAY_MANAGED_IN_STORE
-            )
-        }
+        val externalUser = requireStripeSubscription(user)
 
         val subscriptionId = externalUser.subscriptionId
             ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
@@ -216,11 +200,62 @@ class PaymentService(
     fun getPlans() =
         stripeClient.listPlans()
 
+    fun cancelStripeImmediatelyForProviderSwitch(user: User, existingStripeExternalUser: ExternalUser? = null) {
+        val externalUser = existingStripeExternalUser ?: requireStripeSubscription(user)
+
+        if (externalUser.externalProvider != ExternalProvider.STRIPE) {
+            throw IllegalArgumentException("Assinatura Stripe não encontrada para troca de provedor")
+        }
+
+        val subscriptionId = externalUser.subscriptionId
+            ?: throw IllegalArgumentException("Usuário não possui assinatura ativa")
+
+        stripeClient.deleteSubscriptionImmediately(subscriptionId)
+        externalUserRepository.findByUserId(user.id!!)?.takeIf { it.externalProvider == ExternalProvider.STRIPE }?.let {
+            externalUserRepository.delete(it)
+        }
+        log.info { "Stripe subscription canceled immediately for provider switch user=${user.id}" }
+    }
+
     private fun getPriceIdByProductId(productId: String): String {
         val prices = stripeClient.getPricesByProduct(productId).data
 
         return prices.firstOrNull()?.id
             ?: throw IllegalStateException("Nenhum preço encontrado para o produto: $productId")
+    }
+
+    private fun ensureNoConflictingProvider(user: User, externalUser: ExternalUser?, blocked: ExternalProvider) {
+        if (externalUser?.externalProvider == blocked && hasBlockingSubscription(user, externalUser)) {
+            throw PaymentException(
+                "Você já possui assinatura ativa pela Google Play. Gerencie ou cancele na Play Store antes de assinar na web.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
+        }
+    }
+
+    private fun requireStripeSubscription(user: User): ExternalUser {
+        val externalUser = externalUserRepository.findByUserId(user.id!!)
+            ?: throw IllegalArgumentException("Usuário externo não encontrado")
+
+        if (externalUser.externalProvider == ExternalProvider.GOOGLE_PLAY && hasBlockingSubscription(user, externalUser)) {
+            throw PaymentException(
+                "Assinaturas Google Play devem ser gerenciadas na Play Store.",
+                PaymentErrorCode.PLAY_MANAGED_IN_STORE
+            )
+        }
+
+        if (externalUser.externalProvider != ExternalProvider.STRIPE) {
+            throw IllegalArgumentException("Assinatura Stripe não encontrada para o usuário")
+        }
+
+        return externalUser
+    }
+
+    private fun hasBlockingSubscription(user: User, externalUser: ExternalUser?): Boolean {
+        if (externalUser == null) return false
+        val planId = user.userPlan?.plan?.id
+        val status = user.userPlan?.subscriptionStatus ?: SubscriptionStatusEnum.INACTIVE
+        return planId != null && planId != PlanTypeEnum.FREE.id && status != SubscriptionStatusEnum.INACTIVE
     }
 
     private fun getPlanIdByPlanType(planType: String): String =
