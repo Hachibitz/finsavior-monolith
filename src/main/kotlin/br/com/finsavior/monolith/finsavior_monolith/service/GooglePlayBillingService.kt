@@ -17,6 +17,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.SubscriptionStat
 import br.com.finsavior.monolith.finsavior_monolith.repository.ExternalUserRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.UserRepository
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.androidpublisher.AndroidPublisher
@@ -30,6 +31,9 @@ import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.InputStream
+import java.nio.charset.StandardCharsets
 import java.util.Base64
 
 @Service
@@ -119,7 +123,7 @@ class GooglePlayBillingService(
 
     @Transactional
     fun handleRtdnNotification(encodedData: String) {
-        if (properties.serviceAccountJson.isBlank()) {
+        if (!isServiceAccountConfigured()) {
             log.warn { "Google Play RTDN received but service account is not configured" }
             return
         }
@@ -205,10 +209,33 @@ class GooglePlayBillingService(
             client.purchases().subscriptionsv2()
                 .get(packageName, purchaseToken)
                 .execute()
+        } catch (e: GoogleJsonResponseException) {
+            val reason = e.details?.errors?.firstOrNull()?.reason ?: e.details?.message ?: e.message
+            log.error(e) {
+                "Google Play subscriptionsv2.get failed: status=${e.statusCode} reason=$reason package=$packageName"
+            }
+            throw when (e.statusCode) {
+                403 -> PaymentException(
+                    "Conta de serviço sem permissão na Google Play. Verifique Play Console > Acesso à API.",
+                    e,
+                    PaymentErrorCode.PLAY_BILLING_PERMISSION_DENIED
+                )
+                404 -> PaymentException(
+                    "Compra não encontrada na Google Play. Tente restaurar a assinatura novamente.",
+                    e,
+                    PaymentErrorCode.PLAY_PURCHASE_NOT_FOUND
+                )
+                else -> PaymentException(
+                    "Não foi possível validar a compra na Google Play.",
+                    e,
+                    PaymentErrorCode.PLAY_VERIFY_FAILED
+                )
+            }
         } catch (e: Exception) {
             log.error(e) { "Failed to verify Google Play purchase" }
             throw PaymentException(
                 "Não foi possível validar a compra na Google Play.",
+                e,
                 PaymentErrorCode.PLAY_VERIFY_FAILED
             )
         }
@@ -246,6 +273,8 @@ class GooglePlayBillingService(
         val state = subscription.subscriptionState ?: return SubscriptionStatusEnum.INACTIVE
         return when {
             state.contains("ACTIVE", ignoreCase = true) -> SubscriptionStatusEnum.ACTIVE
+            state.contains("PENDING", ignoreCase = true) -> SubscriptionStatusEnum.ACTIVE
+            state.contains("GRACE", ignoreCase = true) -> SubscriptionStatusEnum.ACTIVE
             state.contains("PAUSED", ignoreCase = true) -> SubscriptionStatusEnum.PAST_DUE
             state.contains("ON_HOLD", ignoreCase = true) -> SubscriptionStatusEnum.PAST_DUE
             state.contains("CANCELED", ignoreCase = true) -> SubscriptionStatusEnum.CANCELED_AT_PERIOD_END
@@ -289,25 +318,79 @@ class GooglePlayBillingService(
     }
 
     private fun buildPublisher(): AndroidPublisher? {
-        if (properties.serviceAccountJson.isBlank()) {
-            log.warn { "google.play.service-account-json is empty — Google Play verification disabled" }
+        val serviceAccountStream = openServiceAccountStream() ?: run {
+            log.warn { "Google Play service account is not configured — verification disabled" }
             return null
         }
         return try {
-            val credentials: GoogleCredentials = ServiceAccountCredentials.fromStream(
-                ByteArrayInputStream(properties.serviceAccountJson.toByteArray())
-            ).createScoped(listOf(AndroidPublisherScopes.ANDROIDPUBLISHER))
+            serviceAccountStream.use { stream ->
+                val credentials: GoogleCredentials = ServiceAccountCredentials.fromStream(stream)
+                    .createScoped(listOf(AndroidPublisherScopes.ANDROIDPUBLISHER))
 
-            AndroidPublisher.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                HttpCredentialsAdapter(credentials)
-            )
-                .setApplicationName("FinSavior")
-                .build()
+                AndroidPublisher.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    GsonFactory.getDefaultInstance(),
+                    HttpCredentialsAdapter(credentials)
+                )
+                    .setApplicationName("FinSavior")
+                    .build()
+                    .also { validatePublisherAccess(it) }
+            }
         } catch (e: Exception) {
             log.error(e) { "Failed to initialize Google Play Android Publisher client" }
             null
+        }
+    }
+
+    private fun isServiceAccountConfigured(): Boolean {
+        val path = properties.serviceAccountJsonPath.trim()
+        if (path.isNotBlank() && File(path).isFile) return true
+        return normalizeServiceAccountJson(properties.serviceAccountJson).isNotBlank()
+    }
+
+    private fun openServiceAccountStream(): InputStream? {
+        val path = properties.serviceAccountJsonPath.trim()
+        if (path.isNotBlank()) {
+            val file = File(path)
+            if (file.isFile) {
+                log.info { "Loading Google Play service account from file: $path" }
+                return file.inputStream()
+            }
+            log.warn { "google.play.service-account-json-path=$path not found — falling back to inline JSON" }
+        }
+
+        val json = normalizeServiceAccountJson(properties.serviceAccountJson)
+        if (json.isBlank()) return null
+        return ByteArrayInputStream(json.toByteArray(StandardCharsets.UTF_8))
+    }
+
+    private fun normalizeServiceAccountJson(raw: String): String {
+        var json = raw.trim()
+        if (json.length >= 2 && json.first() == json.last() && json.first() in charArrayOf('\'', '"')) {
+            json = json.substring(1, json.length - 1)
+        }
+        if (json.contains("\\\\n")) {
+            json = json.replace("\\\\n", "\\n")
+        }
+        return json
+    }
+
+    private fun validatePublisherAccess(client: AndroidPublisher) {
+        try {
+            client.monetization().subscriptions()
+                .list(properties.packageName)
+                .setPageSize(1)
+                .execute()
+            log.info { "Google Play Android Publisher access OK for package=${properties.packageName}" }
+        } catch (e: GoogleJsonResponseException) {
+            log.error(e) {
+                "Google Play API access check failed (HTTP ${e.statusCode}): ${e.details?.message}. " +
+                    "Link finsavior-play-billing-backend@finsavior.iam.gserviceaccount.com in " +
+                    "Play Console > Setup > API access and grant " +
+                    "'View financial data, orders, and cancellation survey responses'."
+            }
+        } catch (e: Exception) {
+            log.error(e) { "Google Play API access check failed unexpectedly" }
         }
     }
 

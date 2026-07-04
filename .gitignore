@@ -45,5 +45,9 @@ zookeeper-data
 ### Firebase ###
 src/main/resources/firebase/
 
+### Google Play ###
+google-play/serviceAccountKey.json
+src/main/resources/google-play/
+
 ### Secrets Env ###
 .env

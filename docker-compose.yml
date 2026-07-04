@@ -24,6 +24,7 @@ services:
     volumes:
       # O Docker vai pegar o arquivo da VPS e mapear neste caminho interno do contêiner
       - ./firebase/serviceAccountKey.json:/app/firebase/serviceAccountKey.json
+      - ./google-play/serviceAccountKey.json:/app/google-play/serviceAccountKey.json
     environment:
       # O monolith agora chama o config-server pela rede interna do Docker
       - SPRING_CLOUD_CONFIG_URI=http://config-server:8084
