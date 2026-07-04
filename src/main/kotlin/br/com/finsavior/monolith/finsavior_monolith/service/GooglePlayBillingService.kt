@@ -38,6 +38,7 @@ class GooglePlayBillingService(
     private val userRepository: UserRepository,
     private val externalUserRepository: ExternalUserRepository,
     private val planRepository: PlanRepository,
+    private val paymentService: PaymentService,
     private val properties: GooglePlayProperties,
     private val planIdProperties: PlanIdProperties
 ) {
@@ -80,7 +81,10 @@ class GooglePlayBillingService(
     fun verifyAndActivateSubscription(request: GooglePlayVerifySubscriptionRequest): GooglePlayVerifySubscriptionResponse {
         val user = userService.getUserByContext()
         val userId = user.id!!
-        ensureNoConflictingProvider(userId, ExternalProvider.STRIPE)
+        val existingExternalUser = externalUserRepository.findByUserId(userId)
+        val shouldCancelStripeAfterVerification =
+            existingExternalUser?.externalProvider == ExternalProvider.STRIPE && hasBlockingSubscription(user)
+        ensureNoUnsupportedConflictingProvider(existingExternalUser, user)
         ensureTokenNotLinkedToAnotherUser(userId, request.purchaseToken)
 
         // Package name always comes from server config — never trust the client here.
@@ -97,6 +101,10 @@ class GooglePlayBillingService(
                 "Esta assinatura não está ativa na Google Play.",
                 PaymentErrorCode.PLAY_SUBSCRIPTION_INACTIVE
             )
+        }
+
+        if (shouldCancelStripeAfterVerification) {
+            paymentService.cancelStripeImmediatelyForProviderSwitch(user, existingExternalUser)
         }
 
         applyPlan(user, planType, status)
@@ -172,14 +180,20 @@ class GooglePlayBillingService(
         }
     }
 
-    private fun ensureNoConflictingProvider(userId: Long, blocked: ExternalProvider) {
-        val existing = externalUserRepository.findByUserId(userId)
-        if (existing != null && existing.externalProvider == blocked) {
+    private fun ensureNoUnsupportedConflictingProvider(existing: ExternalUser?, user: User) {
+        if (existing == null || !hasBlockingSubscription(user)) return
+        if (existing.externalProvider != ExternalProvider.STRIPE && existing.externalProvider != ExternalProvider.GOOGLE_PLAY) {
             throw PaymentException(
                 "Você já possui assinatura ativa por outro provedor. Cancele antes de assinar pela Google Play.",
                 PaymentErrorCode.SUBSCRIPTION_OTHER_PROVIDER
             )
         }
+    }
+
+    private fun hasBlockingSubscription(user: User): Boolean {
+        val planId = user.userPlan?.plan?.id
+        val status = user.userPlan?.subscriptionStatus ?: SubscriptionStatusEnum.INACTIVE
+        return planId != null && planId != PlanTypeEnum.FREE.id && status != SubscriptionStatusEnum.INACTIVE
     }
 
     private fun fetchSubscription(packageName: String, purchaseToken: String): SubscriptionPurchaseV2 {
