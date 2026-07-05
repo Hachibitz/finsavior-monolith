@@ -29,7 +29,7 @@ data class ExternalUser(
     @Column(name = "external_user_email")
     var externalUserEmail: String? = null,
 
-    @Column(name = "service_name")
+    @Column(name = "service_name", length = 32, nullable = false)
     @Enumerated(EnumType.STRING)
     var externalProvider: ExternalProvider,
 
