@@ -60,11 +60,18 @@ class AiTranscriptionService(
         val historyRecord = audioProcessingHistoryService.reserveAudioUsage(isUsingCoins)
 
         try {
-            val transcription = transcribeAudio(audioFile, locale)
+            validateAudioUpload(audioFile)
+            val mp3File = convertToMp3(audioFile)
+            val durationSeconds = audioDurationSeconds(mp3File)
+            val transcription = sendToOpenAI(mp3File, locale)
             val resultDTO = extractDataFromText(transcription, locale)
 
-            log.info("M=processAudioToBill, I=Transcrição bem-sucedida.")
-            audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.SUCCESS)
+            log.info("M=processAudioToBill, I=Transcrição bem-sucedida. durationSeconds=$durationSeconds")
+            audioProcessingHistoryService.completeAudioUsage(
+                historyRecord,
+                durationSeconds,
+                AudioProcessingStatus.SUCCESS
+            )
             return resultDTO
         } catch (e: Exception) {
             log.error("M=processAudioToBill, E=Erro ao processar áudio.", e)
@@ -148,6 +155,16 @@ class AiTranscriptionService(
     private fun extractTranscriptionFromResponse(responseBody: Map<*, *>?): String {
         return responseBody?.get("text") as? String
             ?: throw WhisperApiException("Resposta da OpenAI não contém o campo 'text'.")
+    }
+
+    private fun audioDurationSeconds(file: File): Int {
+        return try {
+            val durationMs = MultimediaObject(file).info.duration
+            ((durationMs + 999) / 1000).toInt().coerceAtLeast(1)
+        } catch (e: Exception) {
+            log.warn(e) { "Could not read audio duration — defaulting to 60s for quota" }
+            60
+        }
     }
 
     private fun convertToMp3(sourceFile: File): File {
@@ -236,7 +253,6 @@ class AiTranscriptionService(
         val plan = getPlanTypeById(user.userPlan!!.plan.id)
 
         log.info("M=validateAudioLimit, I=Iniciando validação de limite de áudio.")
-        if ((plan?.maxAudioBillEntries ?: 0) > 1000) return
 
         if (isUsingCoins) {
             log.info("M=validateAudioLimit, I=Usando FSCoins para validar limite de áudio.")
@@ -244,14 +260,19 @@ class AiTranscriptionService(
             validateUsingCoins(userId, balance)
             useCoinsForAudio(userId)
             log.info("M=validateAudioLimit, I=FSCoins validados com sucesso.")
-        } else {
-            val usageCount = audioProcessingHistoryService.countAudioEntriesCurrentMonthFree(userId)
-            log.info("M=validateAudioLimit, I=Entradas de áudio no mês atual: $usageCount.")
+            return
+        }
 
-            if (usageCount >= plan!!.maxAudioBillEntries) {
-                log.warn("M=validateAudioLimit, W=Limite do plano atingido para o usuário $userId.")
-                throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade para ilimitado!")
-            }
+        val usageCount = audioProcessingHistoryService.countAudioEntriesCurrentMonthFree(userId)
+        if (plan != null && plan.maxAudioBillEntries < Int.MAX_VALUE && usageCount >= plan.maxAudioBillEntries) {
+            throw WhisperLimitException("Limite mensal de áudio atingido (${plan.maxAudioBillEntries}/mês). Faça upgrade ou use FSCoins!")
+        }
+
+        val usedMinutes = audioProcessingHistoryService.usedAudioMinutesCurrentMonthFree(userId)
+        if (plan != null && plan.maxAudioMinutesPerMonth < Int.MAX_VALUE && usedMinutes >= plan.maxAudioMinutesPerMonth) {
+            throw WhisperLimitException(
+                "Limite mensal de minutos de áudio atingido (${plan.maxAudioMinutesPerMonth} min/mês). Faça upgrade ou use FSCoins!"
+            )
         }
     }
 

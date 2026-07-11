@@ -188,11 +188,14 @@ class MCPToolsConfig(
                 "${plan.amountOfTrimesterAnalysisPerMonth} análises trimestrais",
                 "${plan.amountOfAnnualAnalysisPerMonth} análises anuais",
                 "${plan.amountOfChatMessagesWithSavi} mensagens com a Savi por mês",
-                "Até ${if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth} tokens de IA por mês"
+                "Até ${if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth} tokens de IA por mês",
+                "Até ${plan.maxAudioMinutesPerMonth} minutos de áudio por mês",
+                "Modelo Savi: ${if (plan.usesAdvancedChatModel()) "Luna (Plus/Premium)" else "4.1 mini"}"
             ),
             "limits" to mapOf(
                 "mensagens" to plan.amountOfChatMessagesWithSavi,
-                "tokens" to if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth
+                "tokens" to if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth,
+                "audioMinutes" to plan.maxAudioMinutesPerMonth
             )
         )
     }

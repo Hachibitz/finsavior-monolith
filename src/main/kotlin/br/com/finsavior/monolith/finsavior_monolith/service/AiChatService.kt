@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.ChatModelFactory
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
@@ -27,7 +28,6 @@ import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.ChatMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
-import dev.langchain4j.model.chat.ChatLanguageModel
 import dev.langchain4j.model.output.Response
 import dev.langchain4j.service.AiServices
 import mu.KLogger
@@ -45,7 +45,7 @@ class AiChatService(
     private val userService: UserService,
     private val chatMessageRepository: ChatMessageRepository,
     private val chatMessageHistoryRepository: ChatMessageHistoryRepository,
-    private val chatModel: ChatLanguageModel,
+    private val chatModelFactory: ChatModelFactory,
     private val mcpToolsConfig: MCPToolsConfig,
     private val fsCoinService: FsCoinService,
     @param:Value("\${fscoins-cost-for-chat}") private val coinsCostForMessage: Long
@@ -56,10 +56,17 @@ class AiChatService(
     fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null)): Response<AiMessage> {
         log.info("Asking question to Savi Assistant for user {}", userId)
 
+        val user = userService.getUserByContext()
+        val plan = getPlanTypeById(user.userPlan!!.plan.id)
+        val model = chatModelFactory.forPlan(plan)
+        log.info {
+            "Savi chat model=${OpenAiModelConfig.chatModelForPlan(plan)} plan=${plan?.name}"
+        }
+
         val aiServices = AiServices
             .builder(SaviAssistant::class.java)
             .maxSequentialToolsInvocations(OpenAiModelConfig.CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS)
-            .chatLanguageModel(chatModel)
+            .chatLanguageModel(model)
             .tools(mcpToolsConfig)
             .build()
 

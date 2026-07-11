@@ -1,24 +1,17 @@
 package br.com.finsavior.monolith.finsavior_monolith.config.ai
 
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import dev.langchain4j.model.chat.ChatLanguageModel
-import dev.langchain4j.model.openai.OpenAiChatModel
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
 class LangChainAiChatModelConfig(
-    @param:Value("\${ai.openai.api-key}") private val openAiApiKey: String
+    private val chatModelFactory: ChatModelFactory
 ) {
 
+    /** Default bean used when no plan context is available (falls back to Basic model). */
     @Bean
     fun chatModel(): ChatLanguageModel =
-        OpenAiChatModel.builder()
-            .apiKey(openAiApiKey)
-            .modelName(OpenAiModelConfig.SAVI_CHAT_MODEL)
-            .temperature(0.2)
-            .maxCompletionTokens(OpenAiModelConfig.DEFAULT_CHAT_MAX_COMPLETION_TOKENS)
-            .logRequests(false)
-            .logResponses(false)
-            .build()
+        chatModelFactory.forPlan(PlanTypeEnum.FREE)
 }

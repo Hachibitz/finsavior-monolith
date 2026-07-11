@@ -11,6 +11,8 @@ data class ProfileDataDTO (
     val name: String,
     val phoneNumber: String? = null,
     val isWhatsappEnabled: Boolean,
+    val roles: List<String> = emptyList(),
+    val isAdmin: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -28,6 +30,8 @@ data class ProfileDataDTO (
         if (name != other.name) return false
         if (phoneNumber != other.phoneNumber) return false
         if (isWhatsappEnabled != other.isWhatsappEnabled) return false
+        if (roles != other.roles) return false
+        if (isAdmin != other.isAdmin) return false
 
         return true
     }
@@ -43,6 +47,8 @@ data class ProfileDataDTO (
         result = 31 * result + name.hashCode()
         result = 31 * result + (phoneNumber?.hashCode() ?: 0)
         result = 31 * result + isWhatsappEnabled.hashCode()
+        result = 31 * result + roles.hashCode()
+        result = 31 * result + isAdmin.hashCode()
         return result
     }
 }
