@@ -44,6 +44,15 @@ Common commands:
 
 ## Release Notes
 
+Savi receives the most recent eight conversation exchanges as separate user and
+assistant messages. The optional chat request `date` is the selected month in
+`yyyy-MM` format. Financial tool results are capped and indicate when rows were
+omitted; they must not be treated as complete totals when truncated.
+
+The `purchase_date` column stores the actual date independently of `bill_date`,
+which is the billing month. Newly created installments keep the original
+purchase date across all installments. Previously stored dates are not rewritten.
+
 Database schema is currently managed by Hibernate updates. For release 2.0.0, legacy recurring bills can be linked to the new `fixed_bill` model by running:
 
 ```sql

@@ -24,6 +24,12 @@ import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+data class BillToolResult(
+    val items: List<BillTableDataDTO>,
+    val totalCount: Int,
+    val truncated: Boolean
+)
+
 @Service
 class MCPToolsConfig(
     private val jdbcTemplate: JdbcTemplate,
@@ -38,8 +44,12 @@ class MCPToolsConfig(
 
     private val log: KLogger = KotlinLogging.logger {  }
 
-    private fun cappedBills(bills: List<BillTableDataDTO>): List<BillTableDataDTO> =
-        bills.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS)
+    private fun cappedBills(bills: List<BillTableDataDTO>): BillToolResult =
+        BillToolResult(
+            items = bills.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS),
+            totalCount = bills.size,
+            truncated = bills.size > OpenAiModelConfig.MCP_MAX_BILL_ROWS
+        )
 
     private fun truncateChat(text: String): String {
         val max = OpenAiModelConfig.MCP_MAX_CHAT_MESSAGE_CHARS
@@ -58,7 +68,7 @@ class MCPToolsConfig(
     @Tool(value = ["Load expense table data for a given month"])
     fun loadMainTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadMainTableData(billDate))
 
     @Tool(value = ["Load card IDs and names for the authenticated user"])
@@ -68,26 +78,26 @@ class MCPToolsConfig(
     @Tool(value = ["Load credit‐card expenses for a given month"])
     fun loadCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadCardTableData(billDate))
 
     @Tool(value = ["Load credit‐card expenses for a given month by cardId"])
     fun loadCardExpensesByCardId(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String,
         @P("The ID of the credit card") cardId: Long
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadCardExpenses(billDate, cardId))
 
     @Tool(value = ["Load assets (salary, bonuses, etc) for a given month"])
     fun loadAssetsTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadAssetsTableData(billDate))
 
     @Tool(value = ["Load credit‐card payments (invoice payments) for a given month"])
     fun loadPaymentCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadPaymentCardTableData(billDate))
 
     @Tool(value = ["Delete a bill item by its ID"])
