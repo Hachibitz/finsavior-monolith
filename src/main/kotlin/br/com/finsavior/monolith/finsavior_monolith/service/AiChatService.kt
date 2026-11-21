@@ -13,14 +13,11 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.ChatMessageHist
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageRepository
-import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviAssistant
+import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviConversation
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAccountGuide
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseFormat
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseGuidelines
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatSaviDescription
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getDateGuidelines
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.AiMessage
@@ -29,6 +26,7 @@ import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
 import dev.langchain4j.model.chat.ChatLanguageModel
 import dev.langchain4j.model.output.Response
+import dev.langchain4j.memory.chat.MessageWindowChatMemory
 import dev.langchain4j.service.AiServices
 import mu.KLogger
 import mu.KotlinLogging
@@ -38,6 +36,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
+import java.time.YearMonth
+import java.time.format.DateTimeParseException
 
 
 @Service
@@ -53,20 +53,21 @@ class AiChatService(
 
     private val log: KLogger = KotlinLogging.logger {}
 
-    fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null)): Response<AiMessage> {
+    fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null), selectedMonth: YearMonth? = null): Response<AiMessage> {
         log.info("Asking question to Savi Assistant for user {}", userId)
 
+        val memory = MessageWindowChatMemory.withMaxMessages(OpenAiModelConfig.CHAT_HISTORY_EXCHANGES * 2 + 16)
+        getMessagesWithChatHistoryAndSystemMessage(userId, locale, selectedMonth).forEach(memory::add)
         val aiServices = AiServices
-            .builder(SaviAssistant::class.java)
+            .builder(SaviConversation::class.java)
             .maxSequentialToolsInvocations(OpenAiModelConfig.CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS)
             .chatLanguageModel(chatModel)
+            .chatMemory(memory)
             .tools(mcpToolsConfig)
             .build()
 
-        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, question, locale)
-
         return try {
-            aiServices.chat(messages)
+            aiServices.chat(question)
         } catch (e: Exception) {
             throw AiExceptionSupport.chatCommunicationFailure(e)
         }
@@ -94,7 +95,14 @@ class AiChatService(
             throw ChatbotException("Pergunta inválida.")
         }
 
-        val chatResponse = askQuestion(userId, question, locale)
+        val selectedMonth = request.date?.let {
+            try {
+                YearMonth.parse(it)
+            } catch (e: DateTimeParseException) {
+                throw ChatbotException("Mês selecionado inválido.")
+            }
+        }
+        val chatResponse = askQuestion(userId, question, locale, selectedMonth)
         val answer = chatResponse.content().text()
 
         val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
@@ -123,23 +131,23 @@ class AiChatService(
             .asReversed()
             .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
 
-    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, question: String, locale: String): List<ChatMessage> {
-        val systemMessage = buildChatSystemMessage(userId, locale)
+    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, locale: String, selectedMonth: YearMonth?): List<ChatMessage> {
+        val systemMessage = buildChatSystemMessage(userId, locale, selectedMonth)
 
         val historyMessages = getUserChatHistoryDTO(userId, 0, OpenAiModelConfig.CHAT_HISTORY_EXCHANGES)
             .flatMap { entry ->
                 listOf(
                     UserMessage.from(truncateText(entry.userMessage, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS)),
                     AiMessage.builder()
-                        .text(truncateText(entry.assistantResponse, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS))
+                        .text(truncateAssistantMessage(entry.assistantResponse, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS))
                         .build()
                 )
             }
 
-        return listOf(systemMessage) + historyMessages + UserMessage.from(question)
+        return listOf(systemMessage) + historyMessages
     }
 
-    private fun buildChatSystemMessage(userId: Long, locale: String): SystemMessage {
+    private fun buildChatSystemMessage(userId: Long, locale: String, selectedMonth: YearMonth?): SystemMessage {
         val currentDate = LocalDateTime.now()
         val billTableGuide = """
             # Guia de Tipo de Conta (billTable)
@@ -158,13 +166,19 @@ class AiChatService(
 
             ${getChatSaviDescription()}
 
-            ${getFallbackRules(userId)}
-
-            ${getSearchingDataStrategy(userId)}
+            Use os dados disponíveis nas ferramentas específicas e informe quando forem insuficientes.
+            Não invente valores nem suponha que uma lista parcial representa todas as contas.
+            Reutilize o histórico já fornecido, sem chamar getChatHistory desnecessariamente.
+            Quando o usuário aceitar uma sugestão sua, execute-a em vez de repeti-la.
+            Respeite as restrições e correções informadas pelo usuário; diferencie valores atuais de simulações futuras.
+            Inclua despesas principais e do cartão quando solicitado, evitando contar pagamentos de fatura duas vezes.
+            Confira os cálculos e explique incertezas, sem apresentar estimativas como valores exatos.
+            ${selectedMonth?.let { "O mês selecionado na tela é $it; use-o como referência, salvo se o usuário solicitar outro mês." } ?: ""}
 
             ${getChatResponseGuidelines()}
 
-            ${getDateGuidelines(currentDate)}
+            Data atual para referência: $currentDate.
+            Se nenhum mês estiver selecionado ou for informado, use o mês atual.
 
             ${getChatResponseFormat()}
 
@@ -183,6 +197,10 @@ class AiChatService(
 
     private fun truncateText(value: String, maxChars: Int): String =
         if (value.length <= maxChars) value else value.take(maxChars - 1) + "…"
+
+    private fun truncateAssistantMessage(value: String, maxChars: Int): String =
+        if (value.length <= maxChars) value
+        else value.take((maxChars - 1) / 2) + "…" + value.takeLast(maxChars / 2)
 
     private fun saveChatMessage(
         user: User,
