@@ -23,12 +23,8 @@ class PlanDisplayPriceService(
 
     fun getPricesForCurrency(currencyParam: String?, acceptLanguage: String?): PlanPricesResponse {
         val currency = resolveCurrency(currencyParam, acceptLanguage)
-        var prices = repository.findByCurrencyIgnoreCase(currency)
-        if (prices.isEmpty() && currency != "BRL") {
-            log.info { "No display prices for $currency — falling back to BRL" }
-            prices = repository.findByCurrencyIgnoreCase("BRL")
-            return PlanPricesResponse("BRL", prices.map { it.toDto() })
-        }
+        val prices = repository.findByCurrencyIgnoreCase(currency)
+        if (prices.isEmpty()) log.info { "No display prices for $currency" }
         return PlanPricesResponse(currency, prices.map { it.toDto() })
     }
 
