@@ -58,6 +58,13 @@ dates may have been reconstructed from the billing month and need verification.
 New chat history records identify coin-funded requests so they do not consume
 the plan's chat quota; older records without a payment marker still count.
 
+For release 2.3.0, check that `chat_message_history.paid_with_coins` exists
+before deploying the new backend. If schema updates are not applied by
+Hibernate, back up the database and run
+`scripts/release-2.3.0-chat-usage.sql` once. Do not run it if the column
+already exists. On rollback, keep the nullable column: dropping it would
+permanently lose the payment markers recorded by the new version.
+
 Database schema is currently managed by Hibernate updates. For release 2.0.0, legacy recurring bills can be linked to the new `fixed_bill` model by running:
 
 ```sql

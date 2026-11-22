@@ -51,7 +51,7 @@ class FixedBillService(
         initialMonths.forEach { billDate ->
             val instance = savedFixedBill.toBillTableData(billDate)
             if (billDate == startBillDate && !request.purchaseDate.isNullOrBlank()) {
-                instance.purchaseDate = LocalDate.parse(request.purchaseDate)
+                instance.purchaseDate = LocalDate.parse(request.purchaseDate!!.trim().substringBefore('T'))
             }
             val saved = billTableDataRepository.save(instance)
             if (firstId == null) firstId = saved.id
