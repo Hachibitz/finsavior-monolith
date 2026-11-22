@@ -107,7 +107,7 @@ class AiChatService(
 
         val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
         val savedMessage = saveChatMessage(user, question, answer!!)
-        saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!)
+        saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!, request.isUsingCoins == true)
 
         return ResponseEntity.ok(AiChatResponse(answer))
     }
@@ -172,6 +172,7 @@ class AiChatService(
             Quando o usuário aceitar uma sugestão sua, execute-a em vez de repeti-la.
             Respeite as restrições e correções informadas pelo usuário; diferencie valores atuais de simulações futuras.
             Inclua despesas principais e do cartão quando solicitado, evitando contar pagamentos de fatura duas vezes.
+            Para calcular ou simular custo fixo mensal, use simulateFixedCosts; só exclua despesas identificadas pelo usuário e não trate projeção como alteração de conta.
             Confira os cálculos e explique incertezas, sem apresentar estimativas como valores exatos.
             ${selectedMonth?.let { "O mês selecionado na tela é $it; use-o como referência, salvo se o usuário solicitar outro mês." } ?: ""}
 
@@ -216,11 +217,12 @@ class AiChatService(
         return chatMessageRepository.save(message)
     }
 
-    private fun saveChatMessageHistory(userId: Long, totalTokensFromOpenAI: Int, chatMessageId: Long) {
+    private fun saveChatMessageHistory(userId: Long, totalTokensFromOpenAI: Int, chatMessageId: Long, paidWithCoins: Boolean) {
         val history = ChatMessageHistory(
             userId = userId,
             chatMessageId = chatMessageId,
             tokensUsed = totalTokensFromOpenAI.toLong(),
+            paidWithCoins = paidWithCoins,
             createdAt = LocalDateTime.now()
         )
         chatMessageHistoryRepository.save(history)
@@ -257,9 +259,9 @@ class AiChatService(
     ): Boolean {
         val now = LocalDateTime.now()
         val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
-        val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
+        val endOfMonth = startOfMonth.plusMonths(1)
 
-        val messagesThisMonth = chatMessageHistoryRepository.countByUserIdAndCreatedAtBetween(user.id!!, startOfMonth, endOfMonth)
+        val messagesThisMonth = chatMessageHistoryRepository.findPlanUsage(user.id!!, startOfMonth, endOfMonth).size
 
         val planId = user.userPlan!!.plan.id
         val planType = getPlanTypeById(planId)
@@ -270,9 +272,9 @@ class AiChatService(
     fun validateChatTokensLimit(user: User): Boolean {
         val now = LocalDateTime.now()
         val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
-        val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
+        val endOfMonth = startOfMonth.plusMonths(1)
 
-        val messages = chatMessageHistoryRepository.findAllByUserIdAndCreatedAtBetween(user.id!!, startOfMonth, endOfMonth)
+        val messages = chatMessageHistoryRepository.findPlanUsage(user.id!!, startOfMonth, endOfMonth)
 
         val planId = user.userPlan!!.plan.id
         val planType = getPlanTypeById(planId)

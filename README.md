@@ -52,6 +52,11 @@ omitted; they must not be treated as complete totals when truncated.
 The `purchase_date` column stores the actual date independently of `bill_date`,
 which is the billing month. Newly created installments keep the original
 purchase date across all installments. Previously stored dates are not rewritten.
+New recurring instances retain the exact purchase date only for the initial
+month; subsequent instances do not invent a purchase date. Legacy recurring
+dates may have been reconstructed from the billing month and need verification.
+New chat history records identify coin-funded requests so they do not consume
+the plan's chat quota; older records without a payment marker still count.
 
 Database schema is currently managed by Hibernate updates. For release 2.0.0, legacy recurring bills can be linked to the new `fixed_bill` model by running:
 

@@ -23,6 +23,9 @@ data class ChatMessageHistory(
     @Column(name = "tokens_used")
     val tokensUsed: Long,
 
+    @Column(name = "paid_with_coins")
+    val paidWithCoins: Boolean? = null,
+
     @Column(name = "created_at")
     val createdAt: LocalDateTime = LocalDateTime.now()
 )

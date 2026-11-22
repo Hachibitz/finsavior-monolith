@@ -14,6 +14,7 @@ import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 
 /**
  * Owns the lifecycle of recurring ("fixed") bills. A [FixedBill] template is
@@ -48,7 +49,11 @@ class FixedBillService(
         }
 
         initialMonths.forEach { billDate ->
-            val saved = billTableDataRepository.save(savedFixedBill.toBillTableData(billDate))
+            val instance = savedFixedBill.toBillTableData(billDate)
+            if (billDate == startBillDate && !request.purchaseDate.isNullOrBlank()) {
+                instance.purchaseDate = LocalDate.parse(request.purchaseDate)
+            }
+            val saved = billTableDataRepository.save(instance)
             if (firstId == null) firstId = saved.id
         }
 
