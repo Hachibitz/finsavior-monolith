@@ -16,14 +16,17 @@ class ChatModelFactory(
     fun forPlan(plan: PlanTypeEnum?): ChatLanguageModel {
         val modelName = OpenAiModelConfig.chatModelForPlan(plan)
         return cache.computeIfAbsent(modelName) { name ->
-            OpenAiChatModel.builder()
+            val builder = OpenAiChatModel.builder()
                 .apiKey(openAiApiKey)
                 .modelName(name)
-                .temperature(0.2)
                 .maxCompletionTokens(OpenAiModelConfig.DEFAULT_CHAT_MAX_COMPLETION_TOKENS)
                 .logRequests(false)
                 .logResponses(false)
-                .build()
+            // Reasoning models (gpt-5.6-luna) may reject custom temperature when reasoning.effort is not 'none'.
+            if (name == OpenAiModelConfig.SAVI_CHAT_MODEL_BASIC) {
+                builder.temperature(0.2)
+            }
+            builder.build()
         }
     }
 }

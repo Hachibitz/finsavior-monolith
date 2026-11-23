@@ -7,10 +7,12 @@ import org.springframework.stereotype.Repository
 @Repository
 interface PlanDisplayPriceRepository : JpaRepository<PlanDisplayPrice, Long> {
     fun findByCurrencyIgnoreCase(currency: String): List<PlanDisplayPrice>
-    fun findByPlanTierAndBillingCycleAndCurrencyIgnoreCase(
+    fun findByCurrencyIgnoreCaseAndProviderIgnoreCase(currency: String, provider: String): List<PlanDisplayPrice>
+    fun findByPlanTierAndBillingCycleAndCurrencyIgnoreCaseAndProviderIgnoreCase(
         planTier: String,
         billingCycle: String,
-        currency: String
+        currency: String,
+        provider: String
     ): PlanDisplayPrice?
     fun findAllByOrderByCurrencyAscPlanTierAscBillingCycleAsc(): List<PlanDisplayPrice>
 }

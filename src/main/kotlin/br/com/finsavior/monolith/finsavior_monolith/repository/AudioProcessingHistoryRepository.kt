@@ -11,10 +11,11 @@ import java.time.LocalDateTime
 interface AudioProcessingHistoryRepository : JpaRepository<AudioProcessingHistory, Long> {
     fun countByUserIdAndProcessedAtBetween(userId: Long, start: LocalDateTime, end: LocalDateTime): Int
 
-    fun countByUserIdAndProcessedAtBetweenAndPaidWithCoinsFalse(
+    fun countByUserIdAndProcessedAtBetweenAndPaidWithCoinsFalseAndStatusNot(
         userId: Long,
         start: LocalDateTime,
-        end: LocalDateTime
+        end: LocalDateTime,
+        status: br.com.finsavior.monolith.finsavior_monolith.model.enums.AudioProcessingStatus
     ): Int
 
     @Query(

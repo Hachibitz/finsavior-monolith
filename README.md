@@ -44,6 +44,12 @@ Common commands:
 
 ## Release Notes
 
+For release 2.2.0, plan display prices are sourced live from Stripe and Google Play APIs (with a daily DB cache sync controlled by `finsavior.prices.sync-cron`, default `0 0 4 * * *`). If Hibernate does not alter `plan_display_price` automatically, back up the database and run once before deploying:
+
+```sql
+scripts/release-2.2.0-plan-prices.sql
+```
+
 Database schema is currently managed by Hibernate updates. For release 2.0.0, legacy recurring bills can be linked to the new `fixed_bill` model by running:
 
 ```sql

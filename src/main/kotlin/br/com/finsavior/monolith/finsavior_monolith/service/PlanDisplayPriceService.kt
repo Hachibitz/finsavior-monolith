@@ -17,15 +17,59 @@ import java.util.Currency
 
 @Service
 class PlanDisplayPriceService(
-    private val repository: PlanDisplayPriceRepository
+    private val repository: PlanDisplayPriceRepository,
+    private val syncService: PlanPriceSyncService? = null
 ) {
     private val log = KotlinLogging.logger {}
 
-    fun getPricesForCurrency(currencyParam: String?, acceptLanguage: String?): PlanPricesResponse {
+    fun getPricesForCurrency(
+        currencyParam: String?,
+        acceptLanguage: String?,
+        providerParam: String? = null
+    ): PlanPricesResponse {
         val currency = resolveCurrency(currencyParam, acceptLanguage)
-        val prices = repository.findByCurrencyIgnoreCase(currency)
-        if (prices.isEmpty()) log.info { "No display prices for $currency" }
-        return PlanPricesResponse(currency, prices.map { it.toDto() })
+        val provider = resolveProvider(providerParam)
+
+        val livePrices = syncService?.fetchLivePrices(provider, currency)
+        if (!livePrices.isNullOrEmpty()) {
+            return PlanPricesResponse(
+                currency = currency,
+                prices = livePrices,
+                provider = provider,
+                source = PlanPriceSyncService.SOURCE_PROVIDER_LIVE,
+                lastSyncedAt = livePrices.mapNotNull { it.lastSyncedAt }.maxOrNull()
+            )
+        }
+
+        val providerCached = repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase(currency, provider)
+        if (providerCached.isNotEmpty()) {
+            val dtos = providerCached.map { it.toDto() }
+            return PlanPricesResponse(
+                currency = currency,
+                prices = dtos,
+                provider = provider,
+                source = PlanPriceSyncService.SOURCE_PROVIDER_CACHE,
+                lastSyncedAt = dtos.mapNotNull { it.lastSyncedAt }.maxOrNull()
+            )
+        }
+
+        val manual = repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase(currency, "MANUAL")
+        if (manual.isNotEmpty()) {
+            return PlanPricesResponse(
+                currency = currency,
+                prices = manual.map { it.toDto() },
+                provider = "MANUAL",
+                source = "MANUAL"
+            )
+        }
+
+        log.info { "No display prices available for currency=$currency provider=$provider" }
+        return PlanPricesResponse(
+            currency = currency,
+            prices = emptyList(),
+            provider = provider,
+            source = "UNAVAILABLE"
+        )
     }
 
     fun listAll(): List<PlanDisplayPriceDTO> =
@@ -36,11 +80,15 @@ class PlanDisplayPriceService(
         val tier = request.planTier.trim().uppercase()
         val cycle = request.billingCycle.trim().uppercase()
         val currency = request.currency.trim().uppercase()
-        validate(tier, cycle, currency, request.amount)
+        val provider = request.provider?.trim()?.uppercase()?.takeIf { it.isNotBlank() } ?: "MANUAL"
+        validate(tier, cycle, currency, provider, request.amount)
 
-        val existing = repository.findByPlanTierAndBillingCycleAndCurrencyIgnoreCase(tier, cycle, currency)
+        val existing = repository.findByPlanTierAndBillingCycleAndCurrencyIgnoreCaseAndProviderIgnoreCase(
+            tier, cycle, currency, provider
+        )
         val saved = if (existing != null) {
             existing.amount = request.amount
+            existing.source = "MANUAL"
             repository.save(existing)
         } else {
             repository.save(
@@ -48,6 +96,8 @@ class PlanDisplayPriceService(
                     planTier = tier,
                     billingCycle = cycle,
                     currency = currency,
+                    provider = provider,
+                    source = "MANUAL",
                     amount = request.amount,
                     audit = Audit()
                 )
@@ -55,6 +105,9 @@ class PlanDisplayPriceService(
         }
         return saved.toDto()
     }
+
+    fun syncProvidersNow(): Map<String, Int> =
+        syncService?.syncAllProviderPrices() ?: emptyMap()
 
     @Transactional
     fun delete(id: Long) {
@@ -104,12 +157,24 @@ class PlanDisplayPriceService(
         }
     }
 
-    private fun validate(tier: String, cycle: String, currency: String, amount: BigDecimal) {
+    private fun resolveProvider(providerParam: String?): String {
+        val normalized = providerParam?.trim()?.uppercase().orEmpty()
+        return when (normalized) {
+            PlanPriceSyncService.PROVIDER_GOOGLE_PLAY, "PLAY" -> PlanPriceSyncService.PROVIDER_GOOGLE_PLAY
+            PlanPriceSyncService.PROVIDER_STRIPE, "" -> PlanPriceSyncService.PROVIDER_STRIPE
+            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "provider inválido: $normalized")
+        }
+    }
+
+    private fun validate(tier: String, cycle: String, currency: String, provider: String, amount: BigDecimal) {
         if (tier !in setOf("FREE", "BASIC", "PLUS", "PREMIUM")) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "planTier inválido")
         }
         if (cycle !in setOf("MONTHLY", "ANNUAL")) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "billingCycle inválido")
+        }
+        if (provider !in setOf("MANUAL", PlanPriceSyncService.PROVIDER_STRIPE, PlanPriceSyncService.PROVIDER_GOOGLE_PLAY)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "provider inválido")
         }
         validateCurrencyCode(currency)
         if (amount < BigDecimal.ZERO) {
@@ -130,6 +195,10 @@ class PlanDisplayPriceService(
         planTier = planTier,
         billingCycle = billingCycle,
         currency = currency,
-        amount = amount
+        amount = amount,
+        provider = provider,
+        source = source,
+        externalPriceId = externalPriceId,
+        lastSyncedAt = lastSyncedAt
     )
 }

@@ -30,9 +30,10 @@ class PlanDisplayPriceController(
     @GetMapping("/display-prices")
     fun getDisplayPrices(
         @RequestParam(required = false) currency: String?,
+        @RequestParam(required = false) provider: String?,
         @RequestHeader(value = "Accept-Language", required = false) acceptLanguage: String?
     ): PlanPricesResponse =
-        planDisplayPriceService.getPricesForCurrency(currency, acceptLanguage)
+        planDisplayPriceService.getPricesForCurrency(currency, acceptLanguage, provider)
 }
 
 @RestController
@@ -48,6 +49,10 @@ class AdminPlanDisplayPriceController(
     @ResponseStatus(HttpStatus.OK)
     fun upsert(@Valid @RequestBody request: UpsertPlanDisplayPriceRequest): PlanDisplayPriceDTO =
         planDisplayPriceService.upsert(request)
+
+    @PostMapping("/sync")
+    @ResponseStatus(HttpStatus.OK)
+    fun syncFromProviders(): Map<String, Int> = planDisplayPriceService.syncProvidersNow()
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

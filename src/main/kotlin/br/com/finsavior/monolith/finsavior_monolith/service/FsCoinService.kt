@@ -67,6 +67,16 @@ class FsCoinService(
         userFsCoinRepository.save(record)
     }
 
+    @Transactional
+    fun refundCoins(amount: Long, userId: Long? = null) {
+        if (amount <= 0) return
+        val finalUserId = userId ?: currentUserId()
+        val record = userFsCoinRepository.findByUserId(finalUserId)
+            ?: UserFsCoin(userId = finalUserId, balance = 0L)
+        record.balance += amount
+        userFsCoinRepository.save(record)
+    }
+
     fun getShoppingPrices(): FsCoinPricesResponse {
         return FsCoinPricesResponse(
             beginner = priceBeginner,

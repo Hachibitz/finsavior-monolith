@@ -38,6 +38,9 @@ import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 
 @Service
@@ -52,6 +55,7 @@ class AiChatService(
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
+    private val userChatLocks = ConcurrentHashMap<Long, ReentrantLock>()
 
     fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null)): Response<AiMessage> {
         log.info("Asking question to Savi Assistant for user {}", userId)
@@ -87,28 +91,31 @@ class AiChatService(
         log.info("Incoming chat request: ${request.question}")
         val user = userService.getUserByContext()
         val userId = user.id!!
+        val lock = userChatLocks.computeIfAbsent(userId) { ReentrantLock() }
 
-        if (request.isUsingCoins != null && request.isUsingCoins) {
-            val fsCoinBalance = fsCoinService.getBalance(user.id)
-            validateUsingCoins(user.id!!, fsCoinBalance)
-            useCoinsForChat(user.id!!, fsCoinBalance)
-        } else {
-            validatePlanCoverage(user)
+        return lock.withLock {
+            if (request.isUsingCoins != null && request.isUsingCoins) {
+                val fsCoinBalance = fsCoinService.getBalance(user.id)
+                validateUsingCoins(user.id!!, fsCoinBalance)
+                useCoinsForChat(user.id!!, fsCoinBalance)
+            } else {
+                validatePlanCoverage(user)
+            }
+
+            val question = truncateText(request.question.trim(), OpenAiModelConfig.CHAT_QUESTION_MAX_CHARS)
+            if (question.isBlank()) {
+                throw ChatbotException("Pergunta inválida.")
+            }
+
+            val chatResponse = askQuestion(userId, question, locale)
+            val answer = chatResponse.content().text()
+
+            val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
+            val savedMessage = saveChatMessage(user, question, answer!!)
+            saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!)
+
+            ResponseEntity.ok(AiChatResponse(answer))
         }
-
-        val question = truncateText(request.question.trim(), OpenAiModelConfig.CHAT_QUESTION_MAX_CHARS)
-        if (question.isBlank()) {
-            throw ChatbotException("Pergunta inválida.")
-        }
-
-        val chatResponse = askQuestion(userId, question, locale)
-        val answer = chatResponse.content().text()
-
-        val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
-        val savedMessage = saveChatMessage(user, question, answer!!)
-        saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!)
-
-        return ResponseEntity.ok(AiChatResponse(answer))
     }
 
     fun getUserChatHistory(offset: Int, limit: Int): ResponseEntity<List<ChatMessageDTO>> {

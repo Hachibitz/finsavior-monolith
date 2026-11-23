@@ -50,19 +50,29 @@ class AiTranscriptionService(
         locale: String = LocaleSupport.resolve(null),
     ): AiBillExtractionDTO {
         val userId = userService.getUserByContext().id!!
+        validateAudioUpload(audioFile)
 
-        if (isUsingCoins) {
-            val balance = fsCoinService.getBalance(userId)
-            validateUsingCoins(userId, balance)
-            useCoinsForAudio(userId)
+        val mp3File = convertToMp3(audioFile)
+        val durationSeconds = audioDurationSeconds(mp3File)
+
+        var coinsDebited = false
+        val historyRecord = try {
+            if (isUsingCoins) {
+                val balance = fsCoinService.getBalance(userId)
+                validateUsingCoins(userId, balance)
+                useCoinsForAudio(userId)
+                coinsDebited = true
+            }
+            audioProcessingHistoryService.reserveAudioUsage(isUsingCoins, durationSeconds, userId)
+        } catch (e: Exception) {
+            if (coinsDebited) {
+                fsCoinService.refundCoins(coinsCostForAudio, userId)
+            }
+            deleteQuietly(mp3File)
+            throw e
         }
 
-        val historyRecord = audioProcessingHistoryService.reserveAudioUsage(isUsingCoins)
-
-        try {
-            validateAudioUpload(audioFile)
-            val mp3File = convertToMp3(audioFile)
-            val durationSeconds = audioDurationSeconds(mp3File)
+        return try {
             val transcription = sendToOpenAI(mp3File, locale)
             val resultDTO = extractDataFromText(transcription, locale)
 
@@ -72,10 +82,13 @@ class AiTranscriptionService(
                 durationSeconds,
                 AudioProcessingStatus.SUCCESS
             )
-            return resultDTO
+            resultDTO
         } catch (e: Exception) {
             log.error("M=processAudioToBill, E=Erro ao processar áudio.", e)
             audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.ERROR)
+            if (coinsDebited) {
+                fsCoinService.refundCoins(coinsCostForAudio, userId)
+            }
             throw e
         }
     }
@@ -85,36 +98,96 @@ class AiTranscriptionService(
         isUsingCoins: Boolean,
         locale: String = LocaleSupport.resolve(null),
     ): String {
-        validateAudioProcessingLimit(isUsingCoins)
-        return transcribeAudio(audioFile, locale)
-    }
-
-    private fun transcribeAudio(audioFile: MultipartFile, locale: String = LocaleSupport.resolve(null)): String {
-        log.info("M=transcribeAudio, I=Iniciando processo. Arquivo recebido: ${audioFile.originalFilename}, Tamanho: ${audioFile.size}")
-
+        val userId = userService.getUserByContext().id!!
         validateAudioUpload(audioFile)
 
         val mp3File = convertToMp3(audioFile)
-        return sendToOpenAI(mp3File, locale)
+        val durationSeconds = audioDurationSeconds(mp3File)
+
+        var coinsDebited = false
+        val historyRecord = try {
+            if (isUsingCoins) {
+                val balance = fsCoinService.getBalance(userId)
+                validateUsingCoins(userId, balance)
+                useCoinsForAudio(userId)
+                coinsDebited = true
+            }
+            audioProcessingHistoryService.reserveAudioUsage(isUsingCoins, durationSeconds, userId)
+        } catch (e: Exception) {
+            if (coinsDebited) {
+                fsCoinService.refundCoins(coinsCostForAudio, userId)
+            }
+            deleteQuietly(mp3File)
+            throw e
+        }
+
+        return try {
+            val transcription = sendToOpenAI(mp3File, locale)
+            audioProcessingHistoryService.completeAudioUsage(
+                historyRecord,
+                durationSeconds,
+                AudioProcessingStatus.SUCCESS
+            )
+            transcription
+        } catch (e: Exception) {
+            audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.ERROR)
+            if (coinsDebited) {
+                fsCoinService.refundCoins(coinsCostForAudio, userId)
+            }
+            throw e
+        }
     }
 
     fun transcribeAudioFromFile(
         audioFile: File,
         locale: String = LocaleSupport.resolve(null),
+        userId: Long? = null
     ): String {
         log.info("M=transcribeAudioFromFile, I=Iniciando processo. Arquivo recebido: ${audioFile.name}, Tamanho: ${audioFile.length()}")
 
         validateAudioFile(audioFile)
 
         val mp3File = convertToMp3(audioFile)
-        try {
-            return sendToOpenAI(mp3File, locale)
-        } finally {
+        val durationSeconds = audioDurationSeconds(mp3File)
+        val historyRecord = if (userId != null) {
             try {
-                Files.deleteIfExists(audioFile.toPath())
-            } catch (ex: Exception) {
-                log.warn("Falha ao deletar arquivo de áudio original: ${audioFile.absolutePath}")
+                audioProcessingHistoryService.reserveAudioUsage(
+                    isUsingCoins = false,
+                    durationSeconds = durationSeconds,
+                    explicitUserId = userId
+                )
+            } catch (e: Exception) {
+                deleteQuietly(mp3File)
+                deleteQuietly(audioFile)
+                throw e
             }
+        } else null
+
+        try {
+            val result = sendToOpenAI(mp3File, locale)
+            if (historyRecord != null) {
+                audioProcessingHistoryService.completeAudioUsage(
+                    historyRecord,
+                    durationSeconds,
+                    AudioProcessingStatus.SUCCESS
+                )
+            }
+            return result
+        } catch (e: Exception) {
+            if (historyRecord != null) {
+                audioProcessingHistoryService.updateUsageStatus(historyRecord, AudioProcessingStatus.ERROR)
+            }
+            throw e
+        } finally {
+            deleteQuietly(audioFile)
+        }
+    }
+
+    private fun deleteQuietly(file: File) {
+        try {
+            Files.deleteIfExists(file.toPath())
+        } catch (ex: Exception) {
+            log.warn("Falha ao deletar arquivo temporário: ${file.absolutePath}")
         }
     }
 

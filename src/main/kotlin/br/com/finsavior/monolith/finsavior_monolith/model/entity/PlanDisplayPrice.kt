@@ -9,18 +9,19 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.math.BigDecimal
+import java.time.LocalDateTime
 
 /**
- * Display-only prices for the Plans screen, keyed by tier + billing + currency.
- * Does NOT control Stripe/Play Store billing amounts — those live in each store.
+ * Cached and display prices for the Plans screen, keyed by tier + billing + currency + provider.
+ * Provider-synced rows reflect Stripe / Google Play catalog prices; manual rows are admin overrides.
  */
 @Entity
 @Table(
     name = "plan_display_price",
     uniqueConstraints = [
         UniqueConstraint(
-            name = "uk_plan_display_price",
-            columnNames = ["plan_tier", "billing_cycle", "currency"]
+            name = "uk_plan_display_price_provider",
+            columnNames = ["plan_tier", "billing_cycle", "currency", "provider"]
         )
     ]
 )
@@ -40,6 +41,20 @@ data class PlanDisplayPrice(
     /** ISO 4217, e.g. BRL, USD, EUR */
     @Column(name = "currency", nullable = false, length = 8)
     var currency: String,
+
+    /** STRIPE | GOOGLE_PLAY | MANUAL */
+    @Column(name = "provider", nullable = false, length = 16)
+    var provider: String = "MANUAL",
+
+    /** PROVIDER_LIVE | PROVIDER_CACHE | MANUAL */
+    @Column(name = "source", nullable = false, length = 24)
+    var source: String = "MANUAL",
+
+    @Column(name = "external_price_id", length = 128)
+    var externalPriceId: String? = null,
+
+    @Column(name = "last_synced_at")
+    var lastSyncedAt: LocalDateTime? = null,
 
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     var amount: BigDecimal,
