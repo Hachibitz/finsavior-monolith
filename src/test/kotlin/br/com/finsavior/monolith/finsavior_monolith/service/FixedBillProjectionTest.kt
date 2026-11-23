@@ -42,7 +42,7 @@ class FixedBillProjectionTest {
         )
 
         whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
-        whenever(bills.findAllByFixedBillId(5L)).thenReturn(emptyList())
+        whenever(bills.existsByFixedBillIdAndBillDate(5L, "Feb 2027")).thenReturn(false)
         whenever(bills.save(any<BillTableData>())).thenAnswer { it.getArgument<BillTableData>(0) }
 
         val service = FixedBillService(fixedBills, bills, cache)
@@ -52,6 +52,46 @@ class FixedBillProjectionTest {
 
         service.ensureInstancesForUserAndMonth(10L, "Feb 2027")
         verify(bills).save(any<BillTableData>())
+    }
+
+    @Test
+    fun `concurrent requests for the same month materialize only one fixed bill instance`() {
+        val bills = mock<BillTableDataRepository>()
+        val fixedBills = mock<FixedBillRepository>()
+        val cache = mock<BillCacheService>()
+        val user = User().copy(id = 10L)
+
+        val template = FixedBill(
+            id = 5L,
+            user = user,
+            billName = "Casa",
+            billValue = BigDecimal("1969.00"),
+            billType = BillTypeEnum.EXPENSE,
+            billTable = BillTableEnum.MAIN,
+            startBillDate = "Jan 2027",
+            generationStrategy = FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY,
+            active = true
+        )
+
+        val exists = java.util.concurrent.atomic.AtomicBoolean(false)
+        val savedCount = java.util.concurrent.atomic.AtomicInteger(0)
+        whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
+        whenever(bills.existsByFixedBillIdAndBillDate(5L, "Aug 2027")).thenAnswer { exists.get() }
+        whenever(bills.save(any<BillTableData>())).thenAnswer {
+            Thread.sleep(25)
+            exists.set(true)
+            savedCount.incrementAndGet()
+            it.getArgument<BillTableData>(0)
+        }
+
+        val service = FixedBillService(fixedBills, bills, cache)
+        val threads = (1..4).map {
+            Thread { service.ensureInstancesForUserAndMonth(10L, "Aug 2027") }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+
+        assertEquals(1, savedCount.get())
     }
 
     @Test

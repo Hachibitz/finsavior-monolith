@@ -14,29 +14,34 @@ import mu.KLogger
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.LocalDate
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Owns the lifecycle of recurring ("fixed") bills. A [FixedBill] template is
  * created once and a real [BillTableData] row is materialized for each month,
- * mirroring how installments work. The generation strategy is user-selected:
- * annual upfront creates all remaining months through December, while monthly
- * first-day creates only one instance per month.
+ * mirroring how installments work. Future months are materialized on demand
+ * when queried so planning and calculations remain accurate indefinitely.
  */
 @Service
 class FixedBillService(
     private val fixedBillRepository: FixedBillRepository,
     private val billTableDataRepository: BillTableDataRepository,
-    private val billCacheService: BillCacheService
+    private val billCacheService: BillCacheService,
+    private val transactionTemplate: TransactionTemplate? = null
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
+    private val monthLocks = ConcurrentHashMap<String, ReentrantLock>()
 
     @Transactional
     fun createFixedBill(request: BillTableDataDTO, user: User): Long {
         val startBillDate = request.billDate
         val generationStrategy = request.fixedBillGenerationStrategy
-            ?: FixedBillGenerationStrategyEnum.YEARLY_UPFRONT
+            ?: FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY
 
         val savedFixedBill = fixedBillRepository.save(request.toFixedBill(user))
 
@@ -94,10 +99,21 @@ class FixedBillService(
     /**
      * Ensures every active fixed bill for [userId] has a materialized row for [billDate]
      * whenever [billDate] is at or after the template's start month and was not explicitly excluded.
-     * Allows monthly and cross-year fixed bills to appear in future-month planning and totals.
+     * The per-(user, month) lock wraps the transaction so parallel dashboard/summary requests
+     * cannot insert duplicate instances before commit.
      */
-    @Transactional
     fun ensureInstancesForUserAndMonth(userId: Long, billDate: String) {
+        val lock = monthLocks.computeIfAbsent("$userId:$billDate") { ReentrantLock() }
+        lock.withLock {
+            if (transactionTemplate != null) {
+                transactionTemplate.executeWithoutResult { doEnsureInstancesForUserAndMonth(userId, billDate) }
+            } else {
+                doEnsureInstancesForUserAndMonth(userId, billDate)
+            }
+        }
+    }
+
+    private fun doEnsureInstancesForUserAndMonth(userId: Long, billDate: String) {
         val activeBills = fixedBillRepository.findAllByUserIdAndActiveTrue(userId)
         if (activeBills.isEmpty()) return
 
@@ -119,10 +135,7 @@ class FixedBillService(
             if (billDate in excluded) return@forEach
 
             val fixedBillId = fixedBill.id ?: return@forEach
-            val alreadyExists = billTableDataRepository
-                .findAllByFixedBillId(fixedBillId)
-                .any { it.billDate == billDate }
-            if (alreadyExists) return@forEach
+            if (billTableDataRepository.existsByFixedBillIdAndBillDate(fixedBillId, billDate)) return@forEach
 
             billTableDataRepository.save(fixedBill.toBillTableData(billDate))
         }

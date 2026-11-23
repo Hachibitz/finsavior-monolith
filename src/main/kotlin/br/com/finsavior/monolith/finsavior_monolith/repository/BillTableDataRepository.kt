@@ -14,6 +14,7 @@ interface BillTableDataRepository : JpaRepository<BillTableData, Long> {
     fun findAllByUserIdAndBillDateAndBillTable(userId: Long, billDate: String, billTable: BillTableEnum): List<BillTableData>
     fun findAllByUserIdAndBillDateAndBillTableAndCardId(userId: Long, billDate: String, billTable: BillTableEnum, cardId: String): List<BillTableData>
     fun findAllByFixedBillId(fixedBillId: Long): List<BillTableData>
+    fun existsByFixedBillIdAndBillDate(fixedBillId: Long, billDate: String): Boolean
     fun deleteByUserId(userId: Long)
     fun deleteByCardId(cardId: String)
 

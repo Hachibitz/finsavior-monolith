@@ -27,7 +27,7 @@ fun BillTableDataDTO.toFixedBill(user: User): FixedBill =
         cardId = this.cardId,
         dayOfMonth = parseDayOfMonth(this.purchaseDate),
         startBillDate = this.billDate,
-        generationStrategy = this.fixedBillGenerationStrategy ?: FixedBillGenerationStrategyEnum.YEARLY_UPFRONT,
+        generationStrategy = this.fixedBillGenerationStrategy ?: FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY,
         active = true,
         audit = Audit()
     )
