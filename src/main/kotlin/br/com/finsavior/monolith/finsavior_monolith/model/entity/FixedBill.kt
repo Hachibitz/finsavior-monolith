@@ -84,6 +84,10 @@ class FixedBill(
     @Column(name = "active", nullable = false)
     var active: Boolean = true,
 
+    /** Comma-separated billing months (e.g. "Feb 2027,Mar 2027") explicitly deleted by the user. */
+    @Column(name = "excluded_months", columnDefinition = "TEXT")
+    var excludedMonths: String? = null,
+
     @OneToMany(mappedBy = "fixedBill", cascade = [CascadeType.ALL], orphanRemoval = true)
     val bills: MutableList<BillTableData> = mutableListOf(),
 

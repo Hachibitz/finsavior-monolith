@@ -134,37 +134,53 @@ class BillService(
         )
 
     @Cacheable(value = ["mainTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
-            billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-                userService.getUserByContext().id!!,
-                this.formatBillDate(billDate),
-                BillTableEnum.MAIN
-            ).map { it.toBillTableDataDTO() }
+    fun loadMainTableData(billDate: String): List<BillTableDataDTO> {
+        val userId = userService.getUserByContext().id!!
+        val formattedDate = this.formatBillDate(billDate)
+        fixedBillService.ensureInstancesForUserAndMonth(userId, formattedDate)
+        return billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userId,
+            formattedDate,
+            BillTableEnum.MAIN
+        ).map { it.toBillTableDataDTO() }
+    }
 
     @Cacheable(value = ["cardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadCardTableData(billDate: String): List<BillTableDataDTO> =
-        billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userService.getUserByContext().id!!,
-            this.formatBillDate(billDate),
+    fun loadCardTableData(billDate: String): List<BillTableDataDTO> {
+        val userId = userService.getUserByContext().id!!
+        val formattedDate = this.formatBillDate(billDate)
+        fixedBillService.ensureInstancesForUserAndMonth(userId, formattedDate)
+        return billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userId,
+            formattedDate,
             BillTableEnum.CREDIT_CARD
         ).map { it.toBillTableDataDTO() }
+    }
 
     @Cacheable(value = ["cardExpenses"], key = "@userService.getUserByContext().id + '-' + #billDate + '-' + #cardId")
-    fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> =
-        billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
-            userService.getUserByContext().id!!,
-            this.formatBillDate(billDate),
+    fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> {
+        val userId = userService.getUserByContext().id!!
+        val formattedDate = this.formatBillDate(billDate)
+        fixedBillService.ensureInstancesForUserAndMonth(userId, formattedDate)
+        return billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
+            userId,
+            formattedDate,
             BillTableEnum.CREDIT_CARD,
             cardId.toString()
         ).map { it.toBillTableDataDTO() }
+    }
 
     @Cacheable(value = ["assetsTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> =
-        billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userService.getUserByContext().id!!,
-            this.formatBillDate(billDate),
+    fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> {
+        val userId = userService.getUserByContext().id!!
+        val formattedDate = this.formatBillDate(billDate)
+        fixedBillService.ensureInstancesForUserAndMonth(userId, formattedDate)
+        return billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userId,
+            formattedDate,
             BillTableEnum.ASSETS
         ).map { it.toBillTableDataDTO() }
+    }
 
     @Cacheable(value = ["paymentCardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadPaymentCardTableData(billDate: String): List<BillTableDataDTO> =
@@ -187,7 +203,10 @@ class BillService(
         when {
             deleteAll && bill.installment != null -> installmentRepository.delete(bill.installment!!)
             deleteAll && bill.fixedBill != null -> fixedBillRepository.delete(bill.fixedBill!!)
-            else -> billTableDataRepository.delete(bill)
+            else -> {
+                markFixedBillMonthExcluded(bill)
+                billTableDataRepository.delete(bill)
+            }
         }
         billCacheService.evictUserCaches(user.id!!)
     }
@@ -200,8 +219,23 @@ class BillService(
         if (bill.userId != user.id) {
             throw UnauthorizedException("Você não tem permissão para excluir este registro")
         }
+        markFixedBillMonthExcluded(bill)
         billTableDataRepository.delete(bill)
         billCacheService.evictUserCaches(user.id!!)
+    }
+
+    private fun markFixedBillMonthExcluded(bill: BillTableData) {
+        val fixedBill = bill.fixedBill ?: return
+        val current = fixedBill.excludedMonths
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.toMutableSet()
+            ?: mutableSetOf()
+        if (current.add(bill.billDate)) {
+            fixedBill.excludedMonths = current.joinToString(",")
+            fixedBillRepository.save(fixedBill)
+        }
     }
 
     @Transactional

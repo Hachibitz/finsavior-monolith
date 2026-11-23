@@ -91,6 +91,43 @@ class FixedBillService(
         generateMissingInstances(activeFixedBills, listOf(currentMonth))
     }
 
+    /**
+     * Ensures every active fixed bill for [userId] has a materialized row for [billDate]
+     * whenever [billDate] is at or after the template's start month and was not explicitly excluded.
+     * Allows monthly and cross-year fixed bills to appear in future-month planning and totals.
+     */
+    @Transactional
+    fun ensureInstancesForUserAndMonth(userId: Long, billDate: String) {
+        val activeBills = fixedBillRepository.findAllByUserIdAndActiveTrue(userId)
+        if (activeBills.isEmpty()) return
+
+        val targetMonth = runCatching { BillDateUtils.parse(billDate) }.getOrNull() ?: return
+
+        activeBills.forEach { fixedBill ->
+            val startMonth = runCatching { BillDateUtils.parse(fixedBill.startBillDate) }.getOrNull() ?: return@forEach
+            val isOnOrAfterStart =
+                targetMonth.year > startMonth.year ||
+                    (targetMonth.year == startMonth.year && targetMonth.monthId >= startMonth.monthId)
+            if (!isOnOrAfterStart) return@forEach
+
+            val excluded = fixedBill.excludedMonths
+                ?.split(",")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.toSet()
+                ?: emptySet()
+            if (billDate in excluded) return@forEach
+
+            val fixedBillId = fixedBill.id ?: return@forEach
+            val alreadyExists = billTableDataRepository
+                .findAllByFixedBillId(fixedBillId)
+                .any { it.billDate == billDate }
+            if (alreadyExists) return@forEach
+
+            billTableDataRepository.save(fixedBill.toBillTableData(billDate))
+        }
+    }
+
     private fun generateMissingInstances(fixedBills: List<FixedBill>, targetMonths: List<String>) {
         val affectedUserIds = mutableSetOf<Long>()
 

@@ -7,5 +7,6 @@ import org.springframework.stereotype.Repository
 @Repository
 interface FixedBillRepository : JpaRepository<FixedBill, Long> {
     fun findAllByActiveTrue(): List<FixedBill>
+    fun findAllByUserIdAndActiveTrue(userId: Long): List<FixedBill>
     fun deleteByUserId(userId: Long)
 }
