@@ -73,66 +73,13 @@ class BillService(
         val user = userService.getUserByContext()
         try {
             val id = billTableDataDTO.id ?: throw IllegalArgumentException("ID não informado")
-            val sanitized = sanitize(billTableDataDTO)
-
-            // Negative IDs represent virtual projections from FixedBill.
-            if (id < 0) {
-                val fixedBill = fixedBillRepository.findById(-id).orElseThrow {
-                    IllegalArgumentException("Registro não encontrado")
-                }
-                if (fixedBill.user.id != user.id) {
-                    throw UnauthorizedException("Você não tem permissão para alterar este registro")
-                }
-                fixedBill.apply {
-                    billName = sanitized.billName
-                    billDescription = sanitized.billDescription
-                    billValue = sanitized.billValue
-                    billCategory = sanitized.billCategory
-                    paymentType = sanitized.paymentType
-                    cardId = sanitized.cardId
-                    parsePurchaseDate(sanitized.purchaseDate)?.let {
-                        dayOfMonth = it.dayOfMonth
-                        if (formatBillDate(sanitized.billDate) == startBillDate) {
-                            purchaseDate = it
-                        }
-                    }
-                    audit?.updateDtm = LocalDateTime.now()
-                }
-                fixedBillRepository.save(fixedBill)
-
-                // Materialize a month row only when paid is toggled on so monthly payment status is persisted.
-                if (sanitized.paid) {
-                    val monthRow = BillTableData(
-                        id = 0,
-                        userId = user.id!!,
-                        billType = fixedBill.billType,
-                        billDate = formatBillDate(sanitized.billDate),
-                        billName = fixedBill.billName,
-                        billValue = fixedBill.billValue,
-                        billDescription = fixedBill.billDescription,
-                        billTable = fixedBill.billTable,
-                        billCategory = fixedBill.billCategory,
-                        isPaid = true,
-                        isRecurrent = true,
-                        paymentType = fixedBill.paymentType,
-                        cardId = fixedBill.cardId,
-                        fixedBill = fixedBill,
-                        purchaseDate = parsePurchaseDate(sanitized.purchaseDate),
-                        audit = Audit()
-                    )
-                    billTableDataRepository.save(monthRow)
-                }
-
-                billCacheService.evictUserCaches(user.id!!)
-                return
-            }
-
             val existingRecord = billTableDataRepository.findById(id).orElseThrow {
                 IllegalArgumentException("Registro não encontrado")
             }
             if (existingRecord.userId != user.id) {
                 throw UnauthorizedException("Você não tem permissão para alterar este registro")
             }
+            val sanitized = sanitize(billTableDataDTO)
             existingRecord.apply {
                 billDate = formatBillDate(sanitized.billDate)
                 billName = sanitized.billName
@@ -187,53 +134,37 @@ class BillService(
         )
 
     @Cacheable(value = ["mainTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadMainTableData(billDate: String): List<BillTableDataDTO> {
-        val userId = userService.getUserByContext().id!!
-        val formattedDate = this.formatBillDate(billDate)
-        val stored = billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userId,
-            formattedDate,
-            BillTableEnum.MAIN
-        ).map { it.toBillTableDataDTO() }
-        return stored + fixedBillService.projectFixedBillsForMonth(userId, formattedDate, BillTableEnum.MAIN, stored)
-    }
+    fun loadMainTableData(billDate: String): List<BillTableDataDTO> =
+            billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+                userService.getUserByContext().id!!,
+                this.formatBillDate(billDate),
+                BillTableEnum.MAIN
+            ).map { it.toBillTableDataDTO() }
 
     @Cacheable(value = ["cardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadCardTableData(billDate: String): List<BillTableDataDTO> {
-        val userId = userService.getUserByContext().id!!
-        val formattedDate = this.formatBillDate(billDate)
-        val stored = billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userId,
-            formattedDate,
+    fun loadCardTableData(billDate: String): List<BillTableDataDTO> =
+        billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userService.getUserByContext().id!!,
+            this.formatBillDate(billDate),
             BillTableEnum.CREDIT_CARD
         ).map { it.toBillTableDataDTO() }
-        return stored + fixedBillService.projectFixedBillsForMonth(userId, formattedDate, BillTableEnum.CREDIT_CARD, stored)
-    }
 
     @Cacheable(value = ["cardExpenses"], key = "@userService.getUserByContext().id + '-' + #billDate + '-' + #cardId")
-    fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> {
-        val userId = userService.getUserByContext().id!!
-        val formattedDate = this.formatBillDate(billDate)
-        val stored = billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
-            userId,
-            formattedDate,
+    fun loadCardExpenses(billDate: String, cardId: Long): List<BillTableDataDTO> =
+        billTableDataRepository.findAllByUserIdAndBillDateAndBillTableAndCardId(
+            userService.getUserByContext().id!!,
+            this.formatBillDate(billDate),
             BillTableEnum.CREDIT_CARD,
             cardId.toString()
         ).map { it.toBillTableDataDTO() }
-        return stored + fixedBillService.projectFixedBillsForMonth(userId, formattedDate, BillTableEnum.CREDIT_CARD, stored, cardId)
-    }
 
     @Cacheable(value = ["assetsTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
-    fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> {
-        val userId = userService.getUserByContext().id!!
-        val formattedDate = this.formatBillDate(billDate)
-        val stored = billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
-            userId,
-            formattedDate,
+    fun loadAssetsTableData(billDate: String): List<BillTableDataDTO> =
+        billTableDataRepository.findAllByUserIdAndBillDateAndBillTable(
+            userService.getUserByContext().id!!,
+            this.formatBillDate(billDate),
             BillTableEnum.ASSETS
         ).map { it.toBillTableDataDTO() }
-        return stored + fixedBillService.projectFixedBillsForMonth(userId, formattedDate, BillTableEnum.ASSETS, stored)
-    }
 
     @Cacheable(value = ["paymentCardTable"], key = "@userService.getUserByContext().id + '-' + #billDate")
     fun loadPaymentCardTableData(billDate: String): List<BillTableDataDTO> =
@@ -244,34 +175,8 @@ class BillService(
         ).map { it.toBillTableDataDTO() }
 
     @Transactional
-    fun deleteItem(itemId: Long, deleteAll: Boolean, billDate: String? = null) {
+    fun deleteItem(itemId: Long, deleteAll: Boolean) {
         val user = userService.getUserByContext()
-
-        if (itemId < 0) {
-            val fixedBill = fixedBillRepository.findById(-itemId)
-                .orElseThrow { IllegalArgumentException("Registro não encontrado") }
-            if (fixedBill.user.id != user.id) {
-                throw UnauthorizedException("Você não tem permissão para excluir este registro")
-            }
-            if (deleteAll || billDate.isNullOrBlank()) {
-                fixedBillRepository.delete(fixedBill)
-            } else {
-                val formatted = formatBillDate(billDate)
-                val current = fixedBill.excludedMonths
-                    ?.split(",")
-                    ?.map { it.trim() }
-                    ?.filter { it.isNotEmpty() }
-                    ?.toMutableSet()
-                    ?: mutableSetOf()
-                if (current.add(formatted)) {
-                    fixedBill.excludedMonths = current.joinToString(",")
-                    fixedBillRepository.save(fixedBill)
-                }
-            }
-            billCacheService.evictUserCaches(user.id!!)
-            return
-        }
-
         val bill = billTableDataRepository.findById(itemId)
             .orElseThrow { IllegalArgumentException("Registro não encontrado") }
 
@@ -282,43 +187,21 @@ class BillService(
         when {
             deleteAll && bill.installment != null -> installmentRepository.delete(bill.installment!!)
             deleteAll && bill.fixedBill != null -> fixedBillRepository.delete(bill.fixedBill!!)
-            else -> {
-                markFixedBillMonthExcluded(bill)
-                billTableDataRepository.delete(bill)
-            }
+            else -> billTableDataRepository.delete(bill)
         }
         billCacheService.evictUserCaches(user.id!!)
     }
 
     @Transactional
     fun deleteItemFromTable(itemId: Long) {
-        if (itemId < 0) {
-            deleteItem(itemId, deleteAll = true)
-            return
-        }
         val user = userService.getUserByContext()
         val bill = billTableDataRepository.findById(itemId)
             .orElseThrow { IllegalArgumentException("Registro não encontrado") }
         if (bill.userId != user.id) {
             throw UnauthorizedException("Você não tem permissão para excluir este registro")
         }
-        markFixedBillMonthExcluded(bill)
         billTableDataRepository.delete(bill)
         billCacheService.evictUserCaches(user.id!!)
-    }
-
-    private fun markFixedBillMonthExcluded(bill: BillTableData) {
-        val fixedBill = bill.fixedBill ?: return
-        val current = fixedBill.excludedMonths
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
-            ?.toMutableSet()
-            ?: mutableSetOf()
-        if (current.add(bill.billDate)) {
-            fixedBill.excludedMonths = current.joinToString(",")
-            fixedBillRepository.save(fixedBill)
-        }
     }
 
     @Transactional

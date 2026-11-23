@@ -55,10 +55,9 @@ class BillController(
     @ResponseStatus(HttpStatus.OK)
     fun deleteItem(
         @RequestParam itemId: Long,
-        @RequestParam(defaultValue = "false") deleteAll: Boolean,
-        @RequestParam(required = false) billDate: String? = null
+        @RequestParam(defaultValue = "false") deleteAll: Boolean
     ) =
-        service.deleteItem(itemId, deleteAll, billDate)
+        service.deleteItem(itemId, deleteAll)
 
     @PutMapping("/edit")
     @ResponseStatus(HttpStatus.CREATED)

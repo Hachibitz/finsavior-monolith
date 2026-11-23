@@ -77,20 +77,12 @@ class FixedBill(
     @Column(name = "start_bill_date", length = 20)
     var startBillDate: String,
 
-    /** Exact purchase date provided at creation, preserved for the initial billing month. */
-    @Column(name = "purchase_date")
-    var purchaseDate: java.time.LocalDate? = null,
-
     @Enumerated(EnumType.STRING)
     @Column(name = "generation_strategy", nullable = false, length = 30)
     var generationStrategy: FixedBillGenerationStrategyEnum = FixedBillGenerationStrategyEnum.YEARLY_UPFRONT,
 
     @Column(name = "active", nullable = false)
     var active: Boolean = true,
-
-    /** Comma-separated billing months (e.g. "Feb 2027,Mar 2027") explicitly deleted by the user. */
-    @Column(name = "excluded_months", columnDefinition = "TEXT")
-    var excludedMonths: String? = null,
 
     @OneToMany(mappedBy = "fixedBill", cascade = [CascadeType.ALL], orphanRemoval = true)
     val bills: MutableList<BillTableData> = mutableListOf(),
