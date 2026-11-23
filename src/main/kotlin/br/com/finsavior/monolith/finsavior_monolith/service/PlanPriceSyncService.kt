@@ -10,6 +10,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanDisplayPriceRepository
 import com.google.api.services.androidpublisher.model.Subscription
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -26,7 +27,8 @@ class PlanPriceSyncService(
     private val stripeClient: StripeClient,
     private val googlePlayBillingService: GooglePlayBillingService,
     private val planIdProperties: PlanIdProperties,
-    private val repository: PlanDisplayPriceRepository
+    private val repository: PlanDisplayPriceRepository,
+    @param:Value("\${finsavior.features.i18n-enabled:false}") private val i18nEnabled: Boolean = false
 ) {
     private val log = KotlinLogging.logger {}
 
@@ -108,8 +110,9 @@ class PlanPriceSyncService(
     }
 
     private fun persistProviderPrices(items: List<PlanDisplayPriceDTO>, syncedAt: LocalDateTime): Int {
+        val scopedItems = if (i18nEnabled) items else items.filter { it.currency.equals("BRL", ignoreCase = true) }
         var count = 0
-        items.forEach { item ->
+        scopedItems.forEach { item ->
             val existing = repository.findByPlanTierAndBillingCycleAndCurrencyIgnoreCaseAndProviderIgnoreCase(
                 item.planTier,
                 item.billingCycle,

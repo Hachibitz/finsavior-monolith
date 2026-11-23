@@ -20,7 +20,8 @@ data class PlanPricesResponse(
     val prices: List<PlanDisplayPriceDTO>,
     val provider: String = "STRIPE",
     val source: String = "UNAVAILABLE",
-    val lastSyncedAt: LocalDateTime? = null
+    val lastSyncedAt: LocalDateTime? = null,
+    val i18nEnabled: Boolean = false
 )
 
 data class UpsertPlanDisplayPriceRequest(

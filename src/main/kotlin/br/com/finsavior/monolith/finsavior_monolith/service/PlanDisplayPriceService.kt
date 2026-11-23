@@ -8,6 +8,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.PlanDisplayPric
 import br.com.finsavior.monolith.finsavior_monolith.repository.PlanDisplayPriceRepository
 import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,16 +19,19 @@ import java.util.Currency
 @Service
 class PlanDisplayPriceService(
     private val repository: PlanDisplayPriceRepository,
-    private val syncService: PlanPriceSyncService? = null
+    private val syncService: PlanPriceSyncService? = null,
+    @param:Value("\${finsavior.features.i18n-enabled:false}") private val i18nEnabled: Boolean = false
 ) {
     private val log = KotlinLogging.logger {}
+
+    fun isI18nEnabled(): Boolean = i18nEnabled
 
     fun getPricesForCurrency(
         currencyParam: String?,
         acceptLanguage: String?,
         providerParam: String? = null
     ): PlanPricesResponse {
-        val currency = resolveCurrency(currencyParam, acceptLanguage)
+        val currency = if (i18nEnabled) resolveCurrency(currencyParam, acceptLanguage) else "BRL"
         val provider = resolveProvider(providerParam)
 
         val livePrices = syncService?.fetchLivePrices(provider, currency)
@@ -37,7 +41,8 @@ class PlanDisplayPriceService(
                 prices = livePrices,
                 provider = provider,
                 source = PlanPriceSyncService.SOURCE_PROVIDER_LIVE,
-                lastSyncedAt = livePrices.mapNotNull { it.lastSyncedAt }.maxOrNull()
+                lastSyncedAt = livePrices.mapNotNull { it.lastSyncedAt }.maxOrNull(),
+                i18nEnabled = i18nEnabled
             )
         }
 
@@ -49,7 +54,8 @@ class PlanDisplayPriceService(
                 prices = dtos,
                 provider = provider,
                 source = PlanPriceSyncService.SOURCE_PROVIDER_CACHE,
-                lastSyncedAt = dtos.mapNotNull { it.lastSyncedAt }.maxOrNull()
+                lastSyncedAt = dtos.mapNotNull { it.lastSyncedAt }.maxOrNull(),
+                i18nEnabled = i18nEnabled
             )
         }
 
@@ -59,7 +65,8 @@ class PlanDisplayPriceService(
                 currency = currency,
                 prices = manual.map { it.toDto() },
                 provider = "MANUAL",
-                source = "MANUAL"
+                source = "MANUAL",
+                i18nEnabled = i18nEnabled
             )
         }
 
@@ -68,7 +75,8 @@ class PlanDisplayPriceService(
             currency = currency,
             prices = emptyList(),
             provider = provider,
-            source = "UNAVAILABLE"
+            source = "UNAVAILABLE",
+            i18nEnabled = i18nEnabled
         )
     }
 

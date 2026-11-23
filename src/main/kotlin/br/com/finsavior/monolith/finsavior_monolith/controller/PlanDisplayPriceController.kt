@@ -34,6 +34,10 @@ class PlanDisplayPriceController(
         @RequestHeader(value = "Accept-Language", required = false) acceptLanguage: String?
     ): PlanPricesResponse =
         planDisplayPriceService.getPricesForCurrency(currency, acceptLanguage, provider)
+
+    @GetMapping("/features")
+    fun getFeatures(): Map<String, Boolean> =
+        mapOf("i18nEnabled" to planDisplayPriceService.isI18nEnabled())
 }
 
 @RestController

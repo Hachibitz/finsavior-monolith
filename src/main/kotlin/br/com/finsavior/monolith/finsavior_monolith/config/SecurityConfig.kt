@@ -90,6 +90,7 @@ class SecurityConfig(
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
                         "/plans/display-prices",
+                        "/plans/features",
                     ).permitAll()
                     .requestMatchers(
                         "/user/test-producer",
