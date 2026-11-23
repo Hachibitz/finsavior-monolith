@@ -122,25 +122,44 @@ async function main() {
 
     for (const item of CATALOG) {
       const productId = productIds[item.envKey];
-      const existing = await stripeRequest(secretKey, `/prices?product=${encodeURIComponent(productId)}&active=true&limit=20`);
-      const oldSameInterval = (existing.data || []).filter((p) => p.recurring?.interval === item.interval);
+      const existing = await stripeRequest(secretKey, `/prices?product=${encodeURIComponent(productId)}&active=true&limit=20&expand[]=data.currency_options`);
+      const activeSameInterval = (existing.data || []).filter((p) => p.recurring?.interval === item.interval);
+      const expectedBrlMinor = toMinorUnits(item.brl, 'brl');
+
+      const alreadyMatching = activeSameInterval.find(
+        (p) => p.currency?.toLowerCase() === 'brl' && p.unit_amount === expectedBrlMinor && p.currency_options?.usd
+      );
+      const oldSameInterval = activeSameInterval.filter((p) => !alreadyMatching || p.id !== alreadyMatching.id);
 
       console.log(`\n[${item.label}] (${productId}) — BRL ${item.brl.toFixed(2)} + ${Object.keys(item.currencies).length} moedas`);
-      console.log(`  Preços ativos atuais no mesmo intervalo (${item.interval}): ${oldSameInterval.map((p) => p.id).join(', ') || 'nenhum'}`);
+      console.log(`  Preços ativos atuais no mesmo intervalo (${item.interval}): ${activeSameInterval.map((p) => p.id).join(', ') || 'nenhum'}`);
+      if (alreadyMatching) {
+        console.log(`  ℹ Price compatível já existe (${alreadyMatching.id}); será definido como default_price.`);
+      }
 
       if (!APPLY) continue;
 
-      const form = new URLSearchParams();
-      form.set('product', productId);
-      form.set('currency', 'brl');
-      form.set('unit_amount', String(toMinorUnits(item.brl, 'brl')));
-      form.set('recurring[interval]', item.interval);
-      for (const [cur, val] of Object.entries(item.currencies)) {
-        form.set(`currency_options[${cur}][unit_amount]`, String(toMinorUnits(val, cur)));
+      let targetPriceId = alreadyMatching?.id;
+      if (!targetPriceId) {
+        const form = new URLSearchParams();
+        form.set('product', productId);
+        form.set('currency', 'brl');
+        form.set('unit_amount', String(expectedBrlMinor));
+        form.set('recurring[interval]', item.interval);
+        for (const [cur, val] of Object.entries(item.currencies)) {
+          form.set(`currency_options[${cur}][unit_amount]`, String(toMinorUnits(val, cur)));
+        }
+
+        const created = await stripeRequest(secretKey, '/prices', 'POST', form);
+        targetPriceId = created.id;
+        console.log(`  ✔ Criado novo Price: ${targetPriceId}`);
       }
 
-      const created = await stripeRequest(secretKey, '/prices', 'POST', form);
-      console.log(`  ✔ Criado novo Price: ${created.id}`);
+      // Update product default_price before archiving older prices so Stripe allows archiving the previous default.
+      const prodForm = new URLSearchParams();
+      prodForm.set('default_price', targetPriceId);
+      await stripeRequest(secretKey, `/products/${productId}`, 'POST', prodForm);
+      console.log(`  ✔ default_price do produto atualizado para: ${targetPriceId}`);
 
       for (const oldPrice of oldSameInterval) {
         const archiveForm = new URLSearchParams();
