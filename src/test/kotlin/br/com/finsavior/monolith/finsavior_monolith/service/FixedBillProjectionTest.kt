@@ -1,6 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
-import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
+import br.com.finsavior.monolith.finsavior_monolith.model.dto.BillTableDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.FixedBill
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTableEnum
@@ -23,10 +23,8 @@ import java.util.Optional
 
 class FixedBillProjectionTest {
     @Test
-    fun `monthly fixed bill is materialized on demand for future months and skipped for earlier months`() {
-        val bills = mock<BillTableDataRepository>()
+    fun `projects fixed bill on read for future months without inserting DB rows`() {
         val fixedBills = mock<FixedBillRepository>()
-        val cache = mock<BillCacheService>()
         val user = User().copy(id = 10L)
 
         val template = FixedBill(
@@ -42,60 +40,33 @@ class FixedBillProjectionTest {
         )
 
         whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
-        whenever(bills.existsByFixedBillIdAndBillDate(5L, "Feb 2027")).thenReturn(false)
-        whenever(bills.save(any<BillTableData>())).thenAnswer { it.getArgument<BillTableData>(0) }
+        val service = FixedBillService(fixedBills)
 
-        val service = FixedBillService(fixedBills, bills, cache)
+        assertTrue(service.projectFixedBillsForMonth(10L, "Dec 2026", BillTableEnum.MAIN, emptyList()).isEmpty())
 
-        service.ensureInstancesForUserAndMonth(10L, "Dec 2026")
-        verify(bills, never()).save(any<BillTableData>())
+        val feb = service.projectFixedBillsForMonth(10L, "Feb 2027", BillTableEnum.MAIN, emptyList())
+        assertEquals(1, feb.size)
+        assertEquals(-5L, feb.single().id)
+        assertEquals("Feb 2027", feb.single().billDate)
 
-        service.ensureInstancesForUserAndMonth(10L, "Feb 2027")
-        verify(bills).save(any<BillTableData>())
-    }
-
-    @Test
-    fun `concurrent requests for the same month materialize only one fixed bill instance`() {
-        val bills = mock<BillTableDataRepository>()
-        val fixedBills = mock<FixedBillRepository>()
-        val cache = mock<BillCacheService>()
-        val user = User().copy(id = 10L)
-
-        val template = FixedBill(
-            id = 5L,
-            user = user,
-            billName = "Casa",
-            billValue = BigDecimal("1969.00"),
+        // Legacy or already-materialized month row is not duplicated
+        val legacyRow = BillTableDataDTO(
+            id = 99L,
+            userId = 10L,
             billType = BillTypeEnum.EXPENSE,
+            billDate = "Feb 2027",
+            billName = "Aluguel",
+            billValue = BigDecimal("1800.00"),
+            billDescription = null,
             billTable = BillTableEnum.MAIN,
-            startBillDate = "Jan 2027",
-            generationStrategy = FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY,
-            active = true
+            paid = true,
+            fixedBillId = 5L
         )
-
-        val exists = java.util.concurrent.atomic.AtomicBoolean(false)
-        val savedCount = java.util.concurrent.atomic.AtomicInteger(0)
-        whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
-        whenever(bills.existsByFixedBillIdAndBillDate(5L, "Aug 2027")).thenAnswer { exists.get() }
-        whenever(bills.save(any<BillTableData>())).thenAnswer {
-            Thread.sleep(25)
-            exists.set(true)
-            savedCount.incrementAndGet()
-            it.getArgument<BillTableData>(0)
-        }
-
-        val service = FixedBillService(fixedBills, bills, cache)
-        val threads = (1..4).map {
-            Thread { service.ensureInstancesForUserAndMonth(10L, "Aug 2027") }
-        }
-        threads.forEach { it.start() }
-        threads.forEach { it.join() }
-
-        assertEquals(1, savedCount.get())
+        assertTrue(service.projectFixedBillsForMonth(10L, "Feb 2027", BillTableEnum.MAIN, listOf(legacyRow)).isEmpty())
     }
 
     @Test
-    fun `deleting single fixed-bill instance excludes that month from future projection`() {
+    fun `deleting projected fixed bill for a single month excludes only that month`() {
         val bills = mock<BillTableDataRepository>()
         val fixedBills = mock<FixedBillRepository>()
         val users = mock<UserService>()
@@ -114,33 +85,23 @@ class FixedBillProjectionTest {
             generationStrategy = FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY,
             active = true
         )
-        val febInstance = BillTableData(
-            id = 99L,
-            userId = 10L,
-            billType = BillTypeEnum.EXPENSE,
-            billDate = "Feb 2027",
-            billName = "Aluguel",
-            billValue = BigDecimal("1800.00"),
-            billTable = BillTableEnum.MAIN,
-            billCategory = "Moradia",
-            fixedBill = template
-        )
 
-        whenever(bills.findById(99L)).thenReturn(Optional.of(febInstance))
+        whenever(fixedBills.findById(5L)).thenReturn(Optional.of(template))
+        whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
 
+        val fixedService = FixedBillService(fixedBills)
         val billService = BillService(
             bills, users, mock<AiAdviceRepository>(), mock<InstallmentRepository>(),
-            fixedBills, FixedBillService(fixedBills, bills, cache), cache
+            fixedBills, fixedService, cache
         )
-        billService.deleteItem(99L, deleteAll = false)
 
-        assertTrue(template.excludedMonths?.contains("Feb 2027") == true)
-        verify(fixedBills).save(template)
-        verify(bills).delete(febInstance)
+        billService.deleteItem(-5L, deleteAll = false, billDate = "Feb 2027")
 
-        whenever(fixedBills.findAllByUserIdAndActiveTrue(10L)).thenReturn(listOf(template))
-        FixedBillService(fixedBills, bills, cache).ensureInstancesForUserAndMonth(10L, "Feb 2027")
         assertEquals("Feb 2027", template.excludedMonths)
-        verify(bills, never()).save(any<BillTableData>())
+        verify(fixedBills).save(template)
+        verify(fixedBills, never()).delete(any<FixedBill>())
+
+        assertTrue(fixedService.projectFixedBillsForMonth(10L, "Feb 2027", BillTableEnum.MAIN, emptyList()).isEmpty())
+        assertEquals(1, fixedService.projectFixedBillsForMonth(10L, "Mar 2027", BillTableEnum.MAIN, emptyList()).size)
     }
 }

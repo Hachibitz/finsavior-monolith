@@ -24,15 +24,16 @@ import java.time.LocalDate
 
 class BillPurchaseDateTest {
     @Test
-    fun `recurring bills do not invent dates in future months`() {
-        val bills = mock<BillTableDataRepository>()
+    fun `recurring bills keep purchase date on template for initial month only`() {
         val fixedBills = mock<FixedBillRepository>()
-        val saved = mutableListOf<BillTableData>()
-        whenever(fixedBills.save(any<FixedBill>())).thenAnswer { it.getArgument<FixedBill>(0) }
-        whenever(bills.save(any<BillTableData>())).thenAnswer {
-            it.getArgument<BillTableData>(0).also(saved::add)
+        whenever(fixedBills.save(any<FixedBill>())).thenAnswer {
+            it.getArgument<FixedBill>(0).apply {
+                val idField = FixedBill::class.java.getDeclaredField("id")
+                idField.isAccessible = true
+                idField.set(this, 77L)
+            }
         }
-        val service = FixedBillService(fixedBills, bills, mock<BillCacheService>())
+        val service = FixedBillService(fixedBills)
         val request = BillTableDataDTO(
             userId = 1,
             billType = BillTypeEnum.EXPENSE,
@@ -44,14 +45,34 @@ class BillPurchaseDateTest {
             paid = false,
             isRecurrent = true,
             purchaseDate = "2026-10-25",
-            fixedBillGenerationStrategy = FixedBillGenerationStrategyEnum.YEARLY_UPFRONT
+            fixedBillGenerationStrategy = FixedBillGenerationStrategyEnum.MONTHLY_FIRST_DAY
         )
 
-        service.createFixedBill(request, User().copy(id = 1))
+        val returnedId = service.createFixedBill(request, User().copy(id = 1))
+        assertEquals(-77L, returnedId)
 
-        assertEquals(listOf("Nov 2026", "Dec 2026"), saved.map { it.billDate })
-        assertEquals(LocalDate.of(2026, 10, 25), saved.first().purchaseDate)
-        assertNull(saved.last().purchaseDate)
+        val saved = fixedBills.findAllByUserIdAndActiveTrue(1L)
+        // Projecting initial month keeps exact purchaseDate; future months do not invent one.
+        whenever(fixedBills.findAllByUserIdAndActiveTrue(1L)).thenReturn(
+            listOf(
+                FixedBill(
+                    id = 77L,
+                    user = User().copy(id = 1),
+                    billName = "Rent",
+                    billValue = BigDecimal("100.00"),
+                    billType = BillTypeEnum.EXPENSE,
+                    billTable = BillTableEnum.MAIN,
+                    startBillDate = "Nov 2026",
+                    purchaseDate = LocalDate.of(2026, 10, 25),
+                    active = true
+                )
+            )
+        )
+        val novProjected = service.projectFixedBillsForMonth(1L, "Nov 2026", BillTableEnum.MAIN, emptyList())
+        val decProjected = service.projectFixedBillsForMonth(1L, "Dec 2026", BillTableEnum.MAIN, emptyList())
+
+        assertEquals("2026-10-25", novProjected.single().purchaseDate)
+        assertNull(decProjected.single().purchaseDate)
     }
 
     @Test

@@ -77,6 +77,10 @@ class FixedBill(
     @Column(name = "start_bill_date", length = 20)
     var startBillDate: String,
 
+    /** Exact purchase date provided at creation, preserved for the initial billing month. */
+    @Column(name = "purchase_date")
+    var purchaseDate: java.time.LocalDate? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "generation_strategy", nullable = false, length = 30)
     var generationStrategy: FixedBillGenerationStrategyEnum = FixedBillGenerationStrategyEnum.YEARLY_UPFRONT,
