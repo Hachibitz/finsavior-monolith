@@ -6,7 +6,6 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.BillTableData
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.FixedBill
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.FixedBillGenerationStrategyEnum
-import br.com.finsavior.monolith.finsavior_monolith.util.BillDateUtils
 import java.time.LocalDate
 
 private fun parseDayOfMonth(purchaseDate: String?): Int? {
@@ -49,6 +48,5 @@ fun FixedBill.toBillTableData(billDate: String): BillTableData =
         paymentType = this.paymentType,
         cardId = this.cardId,
         fixedBill = this,
-        purchaseDate = BillDateUtils.purchaseDateFor(billDate, this.dayOfMonth),
         audit = Audit()
     )

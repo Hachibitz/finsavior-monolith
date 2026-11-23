@@ -250,7 +250,7 @@ class BillService(
     private fun saveInstallmentRegister(request: BillTableDataDTO, user: User): Long {
         val totalInstallments = request.installmentCount ?: 1
         var currentBillDate = request.billDate
-        var purchaseDate: LocalDate? = parsePurchaseDate(request.purchaseDate)
+        val purchaseDate: LocalDate? = parsePurchaseDate(request.purchaseDate)
         var firstId: Long? = null
 
         val installment = Installment(user = user)
@@ -274,7 +274,6 @@ class BillService(
             log.info("Parcela $i/$totalInstallments salva: $saved")
 
             currentBillDate = addOneMonthToDateString(currentBillDate)
-            purchaseDate = purchaseDate?.plusMonths(1)
         }
 
         return firstId ?: throw BillRegisterException("Não foi possível salvar as parcelas")

@@ -44,11 +44,32 @@ Common commands:
 
 ## Release Notes
 
-For release 2.2.0, plan display prices are sourced live from Stripe and Google Play APIs (with a daily DB cache sync controlled by `finsavior.prices.sync-cron`, default `0 0 4 * * *`). If Hibernate does not alter `plan_display_price` automatically, back up the database and run once before deploying:
+For this release, plan display prices are sourced live from Stripe and Google Play APIs (with a daily DB cache sync controlled by `finsavior.prices.sync-cron`, default `0 0 4 * * *`), and i18n/multi-currency features remain gated behind `finsavior.features.i18n-enabled` (default `false`). If Hibernate does not alter `plan_display_price` automatically, back up the database and run once before deploying:
 
 ```sql
 scripts/release-2.2.0-plan-prices.sql
 ```
+
+Savi receives the most recent eight conversation exchanges as separate user and
+assistant messages. The optional chat request `date` is the selected month in
+`yyyy-MM` format. Financial tool results are capped and indicate when rows were
+omitted; they must not be treated as complete totals when truncated.
+
+The `purchase_date` column stores the actual date independently of `bill_date`,
+which is the billing month. Newly created installments keep the original
+purchase date across all installments. Previously stored dates are not rewritten.
+New recurring instances retain the exact purchase date only for the initial
+month; subsequent instances do not invent a purchase date. Legacy recurring
+dates may have been reconstructed from the billing month and need verification.
+New chat history records identify coin-funded requests so they do not consume
+the plan's chat quota; older records without a payment marker still count.
+
+For release 2.3.0, check that `chat_message_history.paid_with_coins` exists
+before deploying the new backend. If schema updates are not applied by
+Hibernate, back up the database and run
+`scripts/release-2.3.0-chat-usage.sql` once. Do not run it if the column
+already exists. On rollback, keep the nullable column: dropping it would
+permanently lose the payment markers recorded by the new version.
 
 Database schema is currently managed by Hibernate updates. For release 2.0.0, legacy recurring bills can be linked to the new `fixed_bill` model by running:
 
