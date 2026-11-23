@@ -7,6 +7,7 @@ import br.com.finsavior.monolith.finsavior_monolith.model.dto.ChatMessageDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.GoalDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.dto.ProfileDataDTO
 import br.com.finsavior.monolith.finsavior_monolith.model.enums.PlanTypeEnum
+import br.com.finsavior.monolith.finsavior_monolith.model.enums.BillTypeEnum
 import br.com.finsavior.monolith.finsavior_monolith.service.AiChatService
 import br.com.finsavior.monolith.finsavior_monolith.service.BillService
 import br.com.finsavior.monolith.finsavior_monolith.service.CardService
@@ -23,6 +24,26 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.math.BigDecimal
+import java.math.RoundingMode
+
+data class BillToolResult(
+    val items: List<BillTableDataDTO>,
+    val totalCount: Int,
+    val truncated: Boolean
+)
+
+data class FixedCostSimulation(
+    val billDate: String,
+    val fixedCosts: BigDecimal,
+    val excludedCosts: BigDecimal,
+    val simulatedCosts: BigDecimal,
+    val income: BigDecimal,
+    val percentage: BigDecimal?,
+    val fixedBillCount: Int,
+    val includedItems: List<BillTableDataDTO>,
+    val itemsTruncated: Boolean
+)
 
 @Service
 class MCPToolsConfig(
@@ -38,8 +59,12 @@ class MCPToolsConfig(
 
     private val log: KLogger = KotlinLogging.logger {  }
 
-    private fun cappedBills(bills: List<BillTableDataDTO>): List<BillTableDataDTO> =
-        bills.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS)
+    private fun cappedBills(bills: List<BillTableDataDTO>): BillToolResult =
+        BillToolResult(
+            items = bills.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS),
+            totalCount = bills.size,
+            truncated = bills.size > OpenAiModelConfig.MCP_MAX_BILL_ROWS
+        )
 
     private fun truncateChat(text: String): String {
         val max = OpenAiModelConfig.MCP_MAX_CHAT_MESSAGE_CHARS
@@ -58,7 +83,7 @@ class MCPToolsConfig(
     @Tool(value = ["Load expense table data for a given month"])
     fun loadMainTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadMainTableData(billDate))
 
     @Tool(value = ["Load card IDs and names for the authenticated user"])
@@ -68,27 +93,50 @@ class MCPToolsConfig(
     @Tool(value = ["Load credit‐card expenses for a given month"])
     fun loadCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadCardTableData(billDate))
 
     @Tool(value = ["Load credit‐card expenses for a given month by cardId"])
     fun loadCardExpensesByCardId(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String,
         @P("The ID of the credit card") cardId: Long
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadCardExpenses(billDate, cardId))
 
     @Tool(value = ["Load assets (salary, bonuses, etc) for a given month"])
     fun loadAssetsTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadAssetsTableData(billDate))
 
     @Tool(value = ["Load credit‐card payments (invoice payments) for a given month"])
     fun loadPaymentCardTableData(
         @P("Parameter billDate in 'Mmm yyyy' format (e.g. 'May 2025')") billDate: String
-    ): List<BillTableDataDTO> =
+    ): BillToolResult =
         cappedBills(billService.loadPaymentCardTableData(billDate))
+
+    @Tool(value = ["Calculate exact monthly recurring and installment expenses across main and credit card tables. Only records marked recurring or installment are included; card invoice payments are excluded. Exclude only IDs explicitly selected by the user. Income must be explicitly confirmed by the user."])
+    fun simulateFixedCosts(
+        @P("Billing month in 'Mmm yyyy' format") billDate: String,
+        @P("IDs of fixed or installment expenses the user explicitly wants excluded; empty list if none") excludedIds: List<Long>,
+        @P("Confirmed monthly income; use zero when unknown") income: BigDecimal
+    ): FixedCostSimulation {
+        require(income >= BigDecimal.ZERO) { "Income cannot be negative" }
+        val fixed = (billService.loadMainTableData(billDate) + billService.loadCardTableData(billDate))
+            .filter { it.billType == BillTypeEnum.EXPENSE && (it.isRecurrent == true || it.fixedBillId != null || it.isInstallment == true) }
+        val ids = excludedIds.toSet()
+        require(ids.all { id -> fixed.any { it.id == id } }) { "Excluded IDs must identify fixed or installment expenses in this month" }
+        val total = fixed.sumOf { it.billValue }
+        val excluded = fixed.filter { it.id in ids }.sumOf { it.billValue }
+        val remaining = total - excluded
+        val included = fixed.filterNot { it.id in ids }.sortedByDescending { it.billValue }
+        return FixedCostSimulation(
+            billDate, total, excluded, remaining, income,
+            if (income > BigDecimal.ZERO) remaining.multiply(BigDecimal(100)).divide(income, 2, RoundingMode.HALF_UP) else null,
+            fixed.size, included.take(OpenAiModelConfig.MCP_MAX_BILL_ROWS),
+            included.size > OpenAiModelConfig.MCP_MAX_BILL_ROWS
+        )
+    }
 
     @Tool(value = ["Delete a bill item by its ID"])
     fun deleteBillItem(@P("itemId from bill_table_data") itemId: Long): String {
@@ -188,11 +236,14 @@ class MCPToolsConfig(
                 "${plan.amountOfTrimesterAnalysisPerMonth} análises trimestrais",
                 "${plan.amountOfAnnualAnalysisPerMonth} análises anuais",
                 "${plan.amountOfChatMessagesWithSavi} mensagens com a Savi por mês",
-                "Até ${if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth} tokens de IA por mês"
+                "Até ${if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth} tokens de IA por mês",
+                "Até ${plan.maxAudioMinutesPerMonth} minutos de áudio por mês",
+                "Modelo Savi: ${if (plan.usesAdvancedChatModel()) "Luna (Plus/Premium)" else "4.1 mini"}"
             ),
             "limits" to mapOf(
                 "mensagens" to plan.amountOfChatMessagesWithSavi,
-                "tokens" to if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth
+                "tokens" to if (plan.maxTokensPerMonth == Int.MAX_VALUE) "ilimitados" else plan.maxTokensPerMonth,
+                "audioMinutes" to plan.maxAudioMinutesPerMonth
             )
         )
     }

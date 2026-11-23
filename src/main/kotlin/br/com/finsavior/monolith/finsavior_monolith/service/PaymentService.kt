@@ -39,6 +39,7 @@ class PaymentService(
     private val stripeClient: StripeClient,
     private val userRepository: UserRepository,
     @Value ("\${finsavior.host-url}") private val finsaviorHostUrl: String,
+    @param:Value("\${finsavior.features.stripe-enabled:true}") private val stripeEnabled: Boolean = true
 ) {
 
     val log: KLogger = KotlinLogging.logger {}
@@ -76,10 +77,23 @@ class PaymentService(
         }
     }
 
-    fun createCheckoutSession(planType: String, email: String, hostedCheckout: Boolean = false): CheckoutSessionDTO {
+    fun createCheckoutSession(
+        planType: String,
+        email: String,
+        hostedCheckout: Boolean = false,
+        preferredCurrency: String? = null
+    ): CheckoutSessionDTO {
+        if (!stripeEnabled) {
+            throw PaymentException(
+                "Pagamentos pela Web (Stripe) estão desabilitados no momento. Assine pelo app Android na Google Play.",
+                PaymentErrorCode.GENERIC
+            )
+        }
         val user = userService.getUserByContext()
         val productId = getPlanIdByPlanType(planType)
-        val priceId = getPriceIdByProductId(productId)
+        val expectedInterval = if (planType.contains("ANNUAL")) "year" else "month"
+        val selectedPrice = selectPriceForProduct(productId, expectedInterval, preferredCurrency)
+        val priceId = selectedPrice.id
         val userId = user.id!!
         val externalUser = externalUserRepository.findByUserId(userId)
         ensureNoConflictingProvider(user, externalUser, ExternalProvider.GOOGLE_PLAY)
@@ -96,6 +110,11 @@ class PaymentService(
                     .setQuantity(1L)
                     .build()
             )
+
+        val normalizedPreferred = preferredCurrency?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+        if (normalizedPreferred != null && supportsCurrency(selectedPrice, normalizedPreferred)) {
+            sessionBuilder.setCurrency(normalizedPreferred)
+        }
 
         if (externalUser?.isTrialUsed != true) {
             sessionBuilder.setSubscriptionData(
@@ -143,6 +162,12 @@ class PaymentService(
     }
 
     fun updateSubscription(planType: String, email: String) {
+        if (!stripeEnabled) {
+            throw PaymentException(
+                "Pagamentos pela Web (Stripe) estão desabilitados no momento. Assine pelo app Android na Google Play.",
+                PaymentErrorCode.GENERIC
+            )
+        }
         val user = userService.getUserByContext()
         val externalUser = requireStripeSubscription(user)
         val subscriptionId = externalUser.subscriptionId ?: throw IllegalStateException("Usuário não possui assinatura ativa")
@@ -153,9 +178,8 @@ class PaymentService(
 
         val planEnum = PlanTypeEnum.valueOf(planType)
         val productId = planEnum.id
-        val prices = stripeClient.getPricesByProduct(productId)
-        val newPriceId = prices.data.firstOrNull()?.id
-            ?: throw IllegalStateException("Preço não encontrado para o plano $planType")
+        val expectedInterval = if (planType.contains("ANNUAL")) "year" else "month"
+        val newPriceId = selectPriceForProduct(productId, expectedInterval, null).id
 
         stripeClient.updateSubscriptionPrice(subscriptionId, subscriptionItemId, newPriceId)
         
@@ -217,12 +241,37 @@ class PaymentService(
         log.info { "Stripe subscription canceled immediately for provider switch user=${user.id}" }
     }
 
-    private fun getPriceIdByProductId(productId: String): String {
-        val prices = stripeClient.getPricesByProduct(productId).data
+    private fun selectPriceForProduct(
+        productId: String,
+        expectedInterval: String,
+        preferredCurrency: String?
+    ): br.com.finsavior.monolith.finsavior_monolith.integration.dto.StripePrice {
+        val activePrices = stripeClient.getPricesByProduct(productId, active = true)
+            .data
+            .filter { it.active != false }
 
-        return prices.firstOrNull()?.id
-            ?: throw IllegalStateException("Nenhum preço encontrado para o produto: $productId")
+        if (activePrices.isEmpty()) {
+            throw IllegalStateException("Nenhum preço ativo encontrado para o produto: $productId")
+        }
+
+        val intervalMatches = activePrices.filter {
+            it.recurring?.interval.equals(expectedInterval, ignoreCase = true)
+        }.ifEmpty { activePrices }
+
+        val normalizedCurrency = preferredCurrency?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+        if (normalizedCurrency != null) {
+            intervalMatches.firstOrNull { supportsCurrency(it, normalizedCurrency) }?.let { return it }
+        }
+
+        return intervalMatches.first()
     }
+
+    private fun supportsCurrency(
+        price: br.com.finsavior.monolith.finsavior_monolith.integration.dto.StripePrice,
+        normalizedCurrency: String
+    ): Boolean =
+        price.currency.equals(normalizedCurrency, ignoreCase = true) ||
+            price.currency_options?.keys?.any { it.equals(normalizedCurrency, ignoreCase = true) } == true
 
     private fun ensureNoConflictingProvider(user: User, externalUser: ExternalUser?, blocked: ExternalProvider) {
         if (externalUser?.externalProvider == blocked && hasBlockingSubscription(user, externalUser)) {

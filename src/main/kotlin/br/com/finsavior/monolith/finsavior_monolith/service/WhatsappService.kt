@@ -82,7 +82,7 @@ class WhatsappService(
             validateWhatsappQuota(user)
             
             val audioFile = twilioService.downloadMedia(mediaUrl)
-            val transcribedText = aiTranscriptionService.transcribeAudioFromFile(audioFile)
+            val transcribedText = aiTranscriptionService.transcribeAudioFromFile(audioFile, userId = user.id)
 
             if (transcribedText.isBlank()) {
                 logger.warn { "Transcription result for audio from $from is blank." }
@@ -97,6 +97,9 @@ class WhatsappService(
 
         } catch (e: WhatsappSilentException) {
             logger.warn { "WhatsApp limit triggered for user ${user.id}, but warning was already sent recently. Silently dropping." }
+        } catch (e: br.com.finsavior.monolith.finsavior_monolith.exception.WhisperLimitException) {
+            logger.warn { "WhatsApp audio limit triggered for user ${user.id}: ${e.message}" }
+            twilioService.sendMessage(from, e.message ?: "Limite de áudio atingido.")
         } catch (e: WhatsappIntegrationException) {
             logger.warn { "WhatsApp limit/rule triggered for user ${user.id}: ${e.message}" }
             twilioService.sendMessage(from, e.message ?: "Ação não permitida.")

@@ -28,7 +28,12 @@ class PaymentController(
     @PostMapping("/subscription/create-checkout")
     @ResponseStatus(HttpStatus.CREATED)
     fun createCheckoutSession(@RequestBody request: CheckoutSessionDTO): CheckoutSessionDTO =
-        paymentService.createCheckoutSession(request.planType!!, request.email!!, request.hostedCheckout == true)
+        paymentService.createCheckoutSession(
+            request.planType!!,
+            request.email!!,
+            request.hostedCheckout == true,
+            request.currency
+        )
 
     @PostMapping("/subscription/cancel")
     @ResponseStatus(HttpStatus.OK)

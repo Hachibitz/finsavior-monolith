@@ -22,6 +22,7 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.androidpublisher.AndroidPublisher
 import com.google.api.services.androidpublisher.AndroidPublisherScopes
+import com.google.api.services.androidpublisher.model.Subscription
 import com.google.api.services.androidpublisher.model.SubscriptionPurchaseV2
 import com.google.auth.http.HttpCredentialsAdapter
 import com.google.auth.oauth2.GoogleCredentials
@@ -60,6 +61,19 @@ class GooglePlayBillingService(
             return
         }
         publisher
+    }
+
+    fun listSubscriptionsForPricing(): List<Subscription> {
+        val client = publisher ?: return emptyList()
+        return try {
+            val response = client.monetization().subscriptions()
+                .list(properties.packageName)
+                .execute()
+            response.subscriptions ?: emptyList()
+        } catch (e: Exception) {
+            log.warn(e) { "Failed to list Google Play subscriptions for pricing sync" }
+            emptyList()
+        }
     }
 
     fun getProductCatalog(): GooglePlayProductCatalogResponse =

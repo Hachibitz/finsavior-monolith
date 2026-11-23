@@ -89,8 +89,13 @@ class SecurityConfig(
                     ).permitAll()
                     // Endpoints que requerem role ADMIN
                     .requestMatchers(
+                        "/plans/display-prices",
+                        "/plans/features",
+                    ).permitAll()
+                    .requestMatchers(
                         "/user/test-producer",
                         "/actuator/**",
+                        "/admin/**",
                     ).hasRole("ADMIN")
                     // Endpoints que requerem USER ou ADMIN
                     .requestMatchers(

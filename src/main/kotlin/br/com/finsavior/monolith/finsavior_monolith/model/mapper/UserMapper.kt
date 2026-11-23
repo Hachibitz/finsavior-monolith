@@ -18,8 +18,9 @@ fun SignUpDTO.toUser(): User =
         audit = Audit(),
     )
 
-fun User.toUserProfileDTO(subscriptionProvider: String? = null): ProfileDataDTO =
-    ProfileDataDTO(
+fun User.toUserProfileDTO(subscriptionProvider: String? = null): ProfileDataDTO {
+    val roleNames = this.roles.mapNotNull { it.name }.distinct()
+    return ProfileDataDTO(
         id = this.id,
         username = this.username,
         profilePicture = this.userProfile!!.profilePicture,
@@ -29,5 +30,8 @@ fun User.toUserProfileDTO(subscriptionProvider: String? = null): ProfileDataDTO 
         lastName = this.lastName,
         name = this.getFirstAndLastName(),
         phoneNumber = this.phoneNumber,
-        isWhatsappEnabled = this.userProfile!!.isWhatsappEnabled
+        isWhatsappEnabled = this.userProfile!!.isWhatsappEnabled,
+        roles = roleNames,
+        isAdmin = roleNames.any { it.equals("ROLE_ADMIN", ignoreCase = true) || it.equals("ADMIN", ignoreCase = true) }
     )
+}

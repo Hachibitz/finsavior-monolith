@@ -1,5 +1,6 @@
 package br.com.finsavior.monolith.finsavior_monolith.service
 
+import br.com.finsavior.monolith.finsavior_monolith.config.ai.ChatModelFactory
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.MCPToolsConfig
 import br.com.finsavior.monolith.finsavior_monolith.config.ai.OpenAiModelConfig
 import br.com.finsavior.monolith.finsavior_monolith.exception.ChatbotException
@@ -13,22 +14,19 @@ import br.com.finsavior.monolith.finsavior_monolith.model.entity.ChatMessageHist
 import br.com.finsavior.monolith.finsavior_monolith.model.entity.User
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageHistoryRepository
 import br.com.finsavior.monolith.finsavior_monolith.repository.ChatMessageRepository
-import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviAssistant
+import br.com.finsavior.monolith.finsavior_monolith.service.strategy.SaviConversation
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getAccountGuide
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseFormat
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatResponseGuidelines
 import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getChatSaviDescription
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getDateGuidelines
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getFallbackRules
-import br.com.finsavior.monolith.finsavior_monolith.util.AiUtils.Companion.getSearchingDataStrategy
 import br.com.finsavior.monolith.finsavior_monolith.util.CommonUtils.Companion.getPlanTypeById
 import br.com.finsavior.monolith.finsavior_monolith.util.LocaleSupport
 import dev.langchain4j.data.message.AiMessage
 import dev.langchain4j.data.message.ChatMessage
 import dev.langchain4j.data.message.SystemMessage
 import dev.langchain4j.data.message.UserMessage
-import dev.langchain4j.model.chat.ChatLanguageModel
 import dev.langchain4j.model.output.Response
+import dev.langchain4j.memory.chat.MessageWindowChatMemory
 import dev.langchain4j.service.AiServices
 import mu.KLogger
 import mu.KotlinLogging
@@ -38,6 +36,11 @@ import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
+import java.time.YearMonth
+import java.time.format.DateTimeParseException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 
 @Service
@@ -45,28 +48,37 @@ class AiChatService(
     private val userService: UserService,
     private val chatMessageRepository: ChatMessageRepository,
     private val chatMessageHistoryRepository: ChatMessageHistoryRepository,
-    private val chatModel: ChatLanguageModel,
+    private val chatModelFactory: ChatModelFactory,
     private val mcpToolsConfig: MCPToolsConfig,
     private val fsCoinService: FsCoinService,
     @param:Value("\${fscoins-cost-for-chat}") private val coinsCostForMessage: Long
 ) {
 
     private val log: KLogger = KotlinLogging.logger {}
+    private val userChatLocks = ConcurrentHashMap<Long, ReentrantLock>()
 
-    fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null)): Response<AiMessage> {
+    fun askQuestion(userId: Long, question: String, locale: String = LocaleSupport.resolve(null), selectedMonth: YearMonth? = null): Response<AiMessage> {
         log.info("Asking question to Savi Assistant for user {}", userId)
 
+        val user = userService.getUserByContext()
+        val plan = getPlanTypeById(user.userPlan!!.plan.id)
+        val model = chatModelFactory.forPlan(plan)
+        log.info {
+            "Savi chat model=${OpenAiModelConfig.chatModelForPlan(plan)} plan=${plan?.name}"
+        }
+
+        val memory = MessageWindowChatMemory.withMaxMessages(OpenAiModelConfig.CHAT_HISTORY_EXCHANGES * 2 + 16)
+        getMessagesWithChatHistoryAndSystemMessage(userId, locale, selectedMonth).forEach(memory::add)
         val aiServices = AiServices
-            .builder(SaviAssistant::class.java)
+            .builder(SaviConversation::class.java)
             .maxSequentialToolsInvocations(OpenAiModelConfig.CHAT_MAX_SEQUENTIAL_TOOL_INVOCATIONS)
-            .chatLanguageModel(chatModel)
+            .chatLanguageModel(model)
+            .chatMemory(memory)
             .tools(mcpToolsConfig)
             .build()
 
-        val messages = getMessagesWithChatHistoryAndSystemMessage(userId, question, locale)
-
         return try {
-            aiServices.chat(messages)
+            aiServices.chat(question)
         } catch (e: Exception) {
             throw AiExceptionSupport.chatCommunicationFailure(e)
         }
@@ -80,28 +92,38 @@ class AiChatService(
         log.info("Incoming chat request: ${request.question}")
         val user = userService.getUserByContext()
         val userId = user.id!!
+        val lock = userChatLocks.computeIfAbsent(userId) { ReentrantLock() }
 
-        if (request.isUsingCoins != null && request.isUsingCoins) {
-            val fsCoinBalance = fsCoinService.getBalance(user.id)
-            validateUsingCoins(user.id!!, fsCoinBalance)
-            useCoinsForChat(user.id!!, fsCoinBalance)
-        } else {
-            validatePlanCoverage(user)
+        return lock.withLock {
+            if (request.isUsingCoins != null && request.isUsingCoins) {
+                val fsCoinBalance = fsCoinService.getBalance(user.id)
+                validateUsingCoins(user.id!!, fsCoinBalance)
+                useCoinsForChat(user.id!!, fsCoinBalance)
+            } else {
+                validatePlanCoverage(user)
+            }
+
+            val question = truncateText(request.question.trim(), OpenAiModelConfig.CHAT_QUESTION_MAX_CHARS)
+            if (question.isBlank()) {
+                throw ChatbotException("Pergunta inválida.")
+            }
+
+            val selectedMonth = request.date?.let {
+                try {
+                    YearMonth.parse(it)
+                } catch (e: DateTimeParseException) {
+                    throw ChatbotException("Mês selecionado inválido.")
+                }
+            }
+            val chatResponse = askQuestion(userId, question, locale, selectedMonth)
+            val answer = chatResponse.content().text()
+
+            val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
+            val savedMessage = saveChatMessage(user, question, answer!!)
+            saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!, request.isUsingCoins == true)
+
+            ResponseEntity.ok(AiChatResponse(answer))
         }
-
-        val question = truncateText(request.question.trim(), OpenAiModelConfig.CHAT_QUESTION_MAX_CHARS)
-        if (question.isBlank()) {
-            throw ChatbotException("Pergunta inválida.")
-        }
-
-        val chatResponse = askQuestion(userId, question, locale)
-        val answer = chatResponse.content().text()
-
-        val totalTokensFromOpenAI = chatResponse.tokenUsage().totalTokenCount()
-        val savedMessage = saveChatMessage(user, question, answer!!)
-        saveChatMessageHistory(userId, totalTokensFromOpenAI, savedMessage.id!!)
-
-        return ResponseEntity.ok(AiChatResponse(answer))
     }
 
     fun getUserChatHistory(offset: Int, limit: Int): ResponseEntity<List<ChatMessageDTO>> {
@@ -123,23 +145,23 @@ class AiChatService(
             .asReversed()
             .map { ChatMessageDTO(it.userMessage, it.assistantResponse, it.createdAt) }
 
-    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, question: String, locale: String): List<ChatMessage> {
-        val systemMessage = buildChatSystemMessage(userId, locale)
+    private fun getMessagesWithChatHistoryAndSystemMessage(userId: Long, locale: String, selectedMonth: YearMonth?): List<ChatMessage> {
+        val systemMessage = buildChatSystemMessage(userId, locale, selectedMonth)
 
         val historyMessages = getUserChatHistoryDTO(userId, 0, OpenAiModelConfig.CHAT_HISTORY_EXCHANGES)
             .flatMap { entry ->
                 listOf(
                     UserMessage.from(truncateText(entry.userMessage, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS)),
                     AiMessage.builder()
-                        .text(truncateText(entry.assistantResponse, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS))
+                        .text(truncateAssistantMessage(entry.assistantResponse, OpenAiModelConfig.CHAT_MESSAGE_MAX_CHARS))
                         .build()
                 )
             }
 
-        return listOf(systemMessage) + historyMessages + UserMessage.from(question)
+        return listOf(systemMessage) + historyMessages
     }
 
-    private fun buildChatSystemMessage(userId: Long, locale: String): SystemMessage {
+    private fun buildChatSystemMessage(userId: Long, locale: String, selectedMonth: YearMonth?): SystemMessage {
         val currentDate = LocalDateTime.now()
         val billTableGuide = """
             # Guia de Tipo de Conta (billTable)
@@ -158,13 +180,20 @@ class AiChatService(
 
             ${getChatSaviDescription()}
 
-            ${getFallbackRules(userId)}
-
-            ${getSearchingDataStrategy(userId)}
+            Use os dados disponíveis nas ferramentas específicas e informe quando forem insuficientes.
+            Não invente valores nem suponha que uma lista parcial representa todas as contas.
+            Reutilize o histórico já fornecido, sem chamar getChatHistory desnecessariamente.
+            Quando o usuário aceitar uma sugestão sua, execute-a em vez de repeti-la.
+            Respeite as restrições e correções informadas pelo usuário; diferencie valores atuais de simulações futuras.
+            Inclua despesas principais e do cartão quando solicitado, evitando contar pagamentos de fatura duas vezes.
+            Para calcular ou simular custo fixo mensal, use simulateFixedCosts; só exclua despesas identificadas pelo usuário e não trate projeção como alteração de conta.
+            Confira os cálculos e explique incertezas, sem apresentar estimativas como valores exatos.
+            ${selectedMonth?.let { "O mês selecionado na tela é $it; use-o como referência, salvo se o usuário solicitar outro mês." } ?: ""}
 
             ${getChatResponseGuidelines()}
 
-            ${getDateGuidelines(currentDate)}
+            Data atual para referência: $currentDate.
+            Se nenhum mês estiver selecionado ou for informado, use o mês atual.
 
             ${getChatResponseFormat()}
 
@@ -184,6 +213,10 @@ class AiChatService(
     private fun truncateText(value: String, maxChars: Int): String =
         if (value.length <= maxChars) value else value.take(maxChars - 1) + "…"
 
+    private fun truncateAssistantMessage(value: String, maxChars: Int): String =
+        if (value.length <= maxChars) value
+        else value.take((maxChars - 1) / 2) + "…" + value.takeLast(maxChars / 2)
+
     private fun saveChatMessage(
         user: User,
         question: String,
@@ -198,11 +231,12 @@ class AiChatService(
         return chatMessageRepository.save(message)
     }
 
-    private fun saveChatMessageHistory(userId: Long, totalTokensFromOpenAI: Int, chatMessageId: Long) {
+    private fun saveChatMessageHistory(userId: Long, totalTokensFromOpenAI: Int, chatMessageId: Long, paidWithCoins: Boolean) {
         val history = ChatMessageHistory(
             userId = userId,
             chatMessageId = chatMessageId,
             tokensUsed = totalTokensFromOpenAI.toLong(),
+            paidWithCoins = paidWithCoins,
             createdAt = LocalDateTime.now()
         )
         chatMessageHistoryRepository.save(history)
@@ -239,9 +273,9 @@ class AiChatService(
     ): Boolean {
         val now = LocalDateTime.now()
         val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
-        val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
+        val endOfMonth = startOfMonth.plusMonths(1)
 
-        val messagesThisMonth = chatMessageHistoryRepository.countByUserIdAndCreatedAtBetween(user.id!!, startOfMonth, endOfMonth)
+        val messagesThisMonth = chatMessageHistoryRepository.findPlanUsage(user.id!!, startOfMonth, endOfMonth).size
 
         val planId = user.userPlan!!.plan.id
         val planType = getPlanTypeById(planId)
@@ -252,9 +286,9 @@ class AiChatService(
     fun validateChatTokensLimit(user: User): Boolean {
         val now = LocalDateTime.now()
         val startOfMonth = now.withDayOfMonth(1).toLocalDate().atStartOfDay()
-        val endOfMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59)
+        val endOfMonth = startOfMonth.plusMonths(1)
 
-        val messages = chatMessageHistoryRepository.findAllByUserIdAndCreatedAtBetween(user.id!!, startOfMonth, endOfMonth)
+        val messages = chatMessageHistoryRepository.findPlanUsage(user.id!!, startOfMonth, endOfMonth)
 
         val planId = user.userPlan!!.plan.id
         val planType = getPlanTypeById(planId)

@@ -29,5 +29,9 @@ data class AudioProcessingHistory(
     var status: AudioProcessingStatus = AudioProcessingStatus.PENDING,
 
     @Column(name = "paid_with_coins")
-    var paidWithCoins: Boolean = false
+    var paidWithCoins: Boolean = false,
+
+    /** Duration of the processed audio clip, used for monthly Whisper minute caps. */
+    @Column(name = "duration_seconds")
+    var durationSeconds: Int? = null
 )

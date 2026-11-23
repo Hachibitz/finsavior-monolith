@@ -21,7 +21,9 @@ interface StripeClient {
 
     @GetMapping("/prices")
     fun getPricesByProduct(
-        @RequestParam("product") productId: String
+        @RequestParam("product") productId: String,
+        @RequestParam("active", required = false) active: Boolean? = true,
+        @RequestParam("expand[]", required = false) expand: List<String>? = listOf("data.currency_options")
     ): StripePriceResponse
 
     @GetMapping("/subscriptions/{subscriptionId}")
