@@ -28,8 +28,8 @@ class PlanPriceSyncService(
     private val googlePlayBillingService: GooglePlayBillingService,
     private val planIdProperties: PlanIdProperties,
     private val repository: PlanDisplayPriceRepository,
-    @param:Value("\${finsavior.features.i18n-enabled:true}") private val i18nEnabled: Boolean = true,
-    @param:Value("\${finsavior.features.stripe-enabled:false}") private val stripeEnabled: Boolean = false
+    @param:Value("\${finsavior.features.i18n-enabled:false}") private val i18nEnabled: Boolean = false,
+    @param:Value("\${finsavior.features.stripe-enabled:true}") private val stripeEnabled: Boolean = true
 ) {
     private val log = KotlinLogging.logger {}
 

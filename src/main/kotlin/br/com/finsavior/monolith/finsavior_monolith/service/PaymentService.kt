@@ -39,7 +39,7 @@ class PaymentService(
     private val stripeClient: StripeClient,
     private val userRepository: UserRepository,
     @Value ("\${finsavior.host-url}") private val finsaviorHostUrl: String,
-    @param:Value("\${finsavior.features.stripe-enabled:false}") private val stripeEnabled: Boolean = false
+    @param:Value("\${finsavior.features.stripe-enabled:true}") private val stripeEnabled: Boolean = true
 ) {
 
     val log: KLogger = KotlinLogging.logger {}
