@@ -18,10 +18,11 @@ data class PlanDisplayPriceDTO(
 data class PlanPricesResponse(
     val currency: String,
     val prices: List<PlanDisplayPriceDTO>,
-    val provider: String = "STRIPE",
+    val provider: String = "GOOGLE_PLAY",
     val source: String = "UNAVAILABLE",
     val lastSyncedAt: LocalDateTime? = null,
-    val i18nEnabled: Boolean = false
+    val i18nEnabled: Boolean = true,
+    val stripeEnabled: Boolean = false
 )
 
 data class UpsertPlanDisplayPriceRequest(

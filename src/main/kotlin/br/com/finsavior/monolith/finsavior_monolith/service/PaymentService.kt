@@ -39,6 +39,7 @@ class PaymentService(
     private val stripeClient: StripeClient,
     private val userRepository: UserRepository,
     @Value ("\${finsavior.host-url}") private val finsaviorHostUrl: String,
+    @param:Value("\${finsavior.features.stripe-enabled:false}") private val stripeEnabled: Boolean = false
 ) {
 
     val log: KLogger = KotlinLogging.logger {}
@@ -82,6 +83,12 @@ class PaymentService(
         hostedCheckout: Boolean = false,
         preferredCurrency: String? = null
     ): CheckoutSessionDTO {
+        if (!stripeEnabled) {
+            throw PaymentException(
+                "Pagamentos pela Web (Stripe) estão desabilitados no momento. Assine pelo app Android na Google Play.",
+                PaymentErrorCode.GENERIC
+            )
+        }
         val user = userService.getUserByContext()
         val productId = getPlanIdByPlanType(planType)
         val expectedInterval = if (planType.contains("ANNUAL")) "year" else "month"
@@ -155,6 +162,12 @@ class PaymentService(
     }
 
     fun updateSubscription(planType: String, email: String) {
+        if (!stripeEnabled) {
+            throw PaymentException(
+                "Pagamentos pela Web (Stripe) estão desabilitados no momento. Assine pelo app Android na Google Play.",
+                PaymentErrorCode.GENERIC
+            )
+        }
         val user = userService.getUserByContext()
         val externalUser = requireStripeSubscription(user)
         val subscriptionId = externalUser.subscriptionId ?: throw IllegalStateException("Usuário não possui assinatura ativa")

@@ -28,7 +28,8 @@ class PlanPriceSyncService(
     private val googlePlayBillingService: GooglePlayBillingService,
     private val planIdProperties: PlanIdProperties,
     private val repository: PlanDisplayPriceRepository,
-    @param:Value("\${finsavior.features.i18n-enabled:false}") private val i18nEnabled: Boolean = false
+    @param:Value("\${finsavior.features.i18n-enabled:true}") private val i18nEnabled: Boolean = true,
+    @param:Value("\${finsavior.features.stripe-enabled:false}") private val stripeEnabled: Boolean = false
 ) {
     private val log = KotlinLogging.logger {}
 
@@ -97,8 +98,10 @@ class PlanPriceSyncService(
         var stripeSaved = 0
         var playSaved = 0
 
-        fetchAllStripePricesSafe()?.let { list ->
-            stripeSaved = persistProviderPrices(list, now)
+        if (stripeEnabled) {
+            fetchAllStripePricesSafe()?.let { list ->
+                stripeSaved = persistProviderPrices(list, now)
+            }
         }
         fetchAllPlayPricesSafe()?.let { list ->
             playSaved = persistProviderPrices(list, now)

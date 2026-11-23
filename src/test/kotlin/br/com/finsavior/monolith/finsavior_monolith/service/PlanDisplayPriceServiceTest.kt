@@ -20,7 +20,8 @@ class PlanDisplayPriceServiceTest {
         whenever(repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase("JPY", "STRIPE")).thenReturn(emptyList())
         whenever(repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase("JPY", "MANUAL")).thenReturn(emptyList())
 
-        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = true).getPricesForCurrency("JPY", null)
+        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = true, stripeEnabled = true)
+            .getPricesForCurrency("JPY", null)
 
         assertEquals("JPY", result.currency)
         assertEquals("UNAVAILABLE", result.source)
@@ -32,16 +33,18 @@ class PlanDisplayPriceServiceTest {
     fun `when i18n is disabled forces BRL regardless of currency param`() {
         val repository = mock<PlanDisplayPriceRepository>()
         val syncService = mock<PlanPriceSyncService>()
-        whenever(syncService.fetchLivePrices("STRIPE", "BRL")).thenReturn(null)
-        whenever(repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase("BRL", "STRIPE")).thenReturn(emptyList())
+        whenever(syncService.fetchLivePrices("GOOGLE_PLAY", "BRL")).thenReturn(null)
+        whenever(repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase("BRL", "GOOGLE_PLAY")).thenReturn(emptyList())
         whenever(repository.findByCurrencyIgnoreCaseAndProviderIgnoreCase("BRL", "MANUAL")).thenReturn(emptyList())
 
-        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = false)
+        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = false, stripeEnabled = false)
             .getPricesForCurrency("USD", "en-US")
 
         assertEquals("BRL", result.currency)
+        assertEquals("GOOGLE_PLAY", result.provider)
         assertEquals(false, result.i18nEnabled)
-        verify(syncService, never()).fetchLivePrices("STRIPE", "USD")
+        assertEquals(false, result.stripeEnabled)
+        verify(syncService, never()).fetchLivePrices("GOOGLE_PLAY", "USD")
     }
 
     @Test
@@ -66,7 +69,8 @@ class PlanDisplayPriceServiceTest {
             )
         )
 
-        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = true).getPricesForCurrency("USD", null, "STRIPE")
+        val result = PlanDisplayPriceService(repository, syncService, i18nEnabled = true, stripeEnabled = true)
+            .getPricesForCurrency("USD", null, "STRIPE")
 
         assertEquals("USD", result.currency)
         assertEquals("PROVIDER_CACHE", result.source)

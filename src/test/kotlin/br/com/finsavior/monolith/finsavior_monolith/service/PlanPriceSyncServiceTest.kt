@@ -63,7 +63,7 @@ class PlanPriceSyncServiceTest {
             .setRegionCode("US")
             .setPrice(Money().setCurrencyCode("USD").setUnits(3L).setNanos(990_000_000))
         val basePlan = BasePlan()
-            .setBasePlanId("monthly")
+            .setBasePlanId("finsavior-plus-monthly")
             .setRegionalConfigs(listOf(brConfig, usConfig))
         val sub = Subscription()
             .setProductId("finsavior_plus_monthly")

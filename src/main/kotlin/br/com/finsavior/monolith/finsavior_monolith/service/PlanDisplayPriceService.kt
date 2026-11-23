@@ -20,11 +20,14 @@ import java.util.Currency
 class PlanDisplayPriceService(
     private val repository: PlanDisplayPriceRepository,
     private val syncService: PlanPriceSyncService? = null,
-    @param:Value("\${finsavior.features.i18n-enabled:false}") private val i18nEnabled: Boolean = false
+    @param:Value("\${finsavior.features.i18n-enabled:true}") private val i18nEnabled: Boolean = true,
+    @param:Value("\${finsavior.features.stripe-enabled:false}") private val stripeEnabled: Boolean = false
 ) {
     private val log = KotlinLogging.logger {}
 
     fun isI18nEnabled(): Boolean = i18nEnabled
+
+    fun isStripeEnabled(): Boolean = stripeEnabled
 
     fun getPricesForCurrency(
         currencyParam: String?,
@@ -42,7 +45,8 @@ class PlanDisplayPriceService(
                 provider = provider,
                 source = PlanPriceSyncService.SOURCE_PROVIDER_LIVE,
                 lastSyncedAt = livePrices.mapNotNull { it.lastSyncedAt }.maxOrNull(),
-                i18nEnabled = i18nEnabled
+                i18nEnabled = i18nEnabled,
+                stripeEnabled = stripeEnabled
             )
         }
 
@@ -55,7 +59,8 @@ class PlanDisplayPriceService(
                 provider = provider,
                 source = PlanPriceSyncService.SOURCE_PROVIDER_CACHE,
                 lastSyncedAt = dtos.mapNotNull { it.lastSyncedAt }.maxOrNull(),
-                i18nEnabled = i18nEnabled
+                i18nEnabled = i18nEnabled,
+                stripeEnabled = stripeEnabled
             )
         }
 
@@ -66,7 +71,8 @@ class PlanDisplayPriceService(
                 prices = manual.map { it.toDto() },
                 provider = "MANUAL",
                 source = "MANUAL",
-                i18nEnabled = i18nEnabled
+                i18nEnabled = i18nEnabled,
+                stripeEnabled = stripeEnabled
             )
         }
 
@@ -76,7 +82,8 @@ class PlanDisplayPriceService(
             prices = emptyList(),
             provider = provider,
             source = "UNAVAILABLE",
-            i18nEnabled = i18nEnabled
+            i18nEnabled = i18nEnabled,
+            stripeEnabled = stripeEnabled
         )
     }
 
@@ -169,7 +176,8 @@ class PlanDisplayPriceService(
         val normalized = providerParam?.trim()?.uppercase().orEmpty()
         return when (normalized) {
             PlanPriceSyncService.PROVIDER_GOOGLE_PLAY, "PLAY" -> PlanPriceSyncService.PROVIDER_GOOGLE_PLAY
-            PlanPriceSyncService.PROVIDER_STRIPE, "" -> PlanPriceSyncService.PROVIDER_STRIPE
+            PlanPriceSyncService.PROVIDER_STRIPE -> if (stripeEnabled) PlanPriceSyncService.PROVIDER_STRIPE else PlanPriceSyncService.PROVIDER_GOOGLE_PLAY
+            "" -> if (stripeEnabled) PlanPriceSyncService.PROVIDER_STRIPE else PlanPriceSyncService.PROVIDER_GOOGLE_PLAY
             else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "provider inválido: $normalized")
         }
     }

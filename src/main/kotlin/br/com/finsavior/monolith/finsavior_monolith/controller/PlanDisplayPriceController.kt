@@ -37,7 +37,10 @@ class PlanDisplayPriceController(
 
     @GetMapping("/features")
     fun getFeatures(): Map<String, Boolean> =
-        mapOf("i18nEnabled" to planDisplayPriceService.isI18nEnabled())
+        mapOf(
+            "i18nEnabled" to planDisplayPriceService.isI18nEnabled(),
+            "stripeEnabled" to planDisplayPriceService.isStripeEnabled()
+        )
 }
 
 @RestController
