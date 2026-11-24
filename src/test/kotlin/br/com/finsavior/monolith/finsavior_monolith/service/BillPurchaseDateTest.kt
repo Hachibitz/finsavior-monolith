@@ -32,7 +32,7 @@ class BillPurchaseDateTest {
         whenever(bills.save(any<BillTableData>())).thenAnswer {
             it.getArgument<BillTableData>(0).also(saved::add)
         }
-        val service = FixedBillService(fixedBills, bills, mock<BillCacheService>())
+        val service = FixedBillService(fixedBills, bills, mock<BillCacheService>(), mock<UserService>())
         val request = BillTableDataDTO(
             userId = 1,
             billType = BillTypeEnum.EXPENSE,
